@@ -490,10 +490,14 @@ def main() -> None:
             display["등급"] = display["Total"].apply(investment_grade)
 
             st.caption("💡 컬럼 헤더 클릭으로 정렬 | 기본: 종합점수 내림차순")
+            row_height = 35
+            header_height = 38
+            tbl_height = len(display) * row_height + header_height
             st.dataframe(
                 display[["rank", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급"]]
                 .rename(columns={"rank": "순위", "market": "시장", "sector": "섹터", "Total": "종합점수"}),
                 use_container_width=True,
+                height=tbl_height,
                 column_config={
                     "종합점수": st.column_config.ProgressColumn(
                         "종합점수", min_value=0, max_value=100, format="%.1f"
