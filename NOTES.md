@@ -22,8 +22,14 @@
 - minmax_scale에서 s_max==s_min 시 NaN 위치까지 중간값으로 채우는 버그 수정
   → series.notna() 위치에만 중간값 할당, NaN 보존
 
+### 알려진 제한사항
+- pykrx KRX API 응답 불능 → universe/시장데이터 fdr 대체 사용
+  → Value(PER/PBR), Quality 중립값 37.5/50 고정
+- DART finstate_all: 일부 종목 연결재무제표 없음 → Growth=0 처리
+- 섹터 분류: pykrx 불능으로 전체 '기타' (fdr Dept 미제공)
+
 ### Phase 진행 상태
 - [x] Phase 1: 골격 생성
 - [x] Phase 2: 비즈니스 로직
-- [x] Phase 3: 테스트 통과 (9/9)
-- [ ] Phase 4: 실행 (사용자 개입 필요 - DART_API_KEY)
+- [x] Phase 3: 테스트 통과 (10/10)
+- [x] Phase 4: 파이프라인 실행 완료 (output/stocks_top100.csv 생성)

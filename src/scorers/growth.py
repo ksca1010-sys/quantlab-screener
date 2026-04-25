@@ -14,16 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 def _revenue_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """매출 YoY 성장률 (최근 분기 기준) → 0~25점."""
+    """매출 YoY 성장률 (최근 연도 대비 전년도) → 0~25점."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
-            rev = _extract_quarterly(df, "매출액")
-            if rev is None or len(rev) < 5:
+            rev = _extract_by_year(df, "매출액")
+            if rev is None or len(rev) < 2:
                 scores[code] = np.nan
                 continue
-            recent = rev.iloc[-1]
-            year_ago = rev.iloc[-5]
+            recent, year_ago = float(rev.iloc[-1]), float(rev.iloc[-2])
             if year_ago <= 0:
                 scores[code] = np.nan
                 continue
@@ -31,7 +30,7 @@ def _revenue_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
         except Exception:
             scores[code] = np.nan
     raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-100, 300)) * 0.25  # 25점 만점
+    return minmax_scale(raw.clip(-100, 300), lower=0, upper=25)
 
 
 def _operating_profit_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
@@ -39,12 +38,11 @@ def _operating_profit_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
-            op = _extract_quarterly(df, "영업이익")
-            if op is None or len(op) < 5:
+            op = _extract_by_year(df, "영업이익")
+            if op is None or len(op) < 2:
                 scores[code] = np.nan
                 continue
-            recent = op.iloc[-1]
-            year_ago = op.iloc[-5]
+            recent, year_ago = float(op.iloc[-1]), float(op.iloc[-2])
             if year_ago == 0:
                 scores[code] = np.nan
                 continue
@@ -52,50 +50,49 @@ def _operating_profit_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
         except Exception:
             scores[code] = np.nan
     raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-100, 300)) * 0.25
+    return minmax_scale(raw.clip(-100, 300), lower=0, upper=25)
 
 
 def _eps_cagr(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """EPS 3개년 CAGR → 0~25점."""
+    """EPS CAGR (가용 연도 기준) → 0~25점."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
-            eps = _extract_annual(df, "주당순이익")
-            if eps is None or len(eps) < 4:
+            eps = _extract_by_year(df, "주당순이익")
+            if eps is None or len(eps) < 2:
                 scores[code] = np.nan
                 continue
-            end_val = eps.iloc[-1]
-            start_val = eps.iloc[-4]
-            if start_val <= 0 or end_val <= 0:
+            end_val, start_val = float(eps.iloc[-1]), float(eps.iloc[0])
+            n_years = len(eps) - 1
+            if start_val <= 0 or end_val <= 0 or n_years == 0:
                 scores[code] = np.nan
                 continue
-            cagr = (end_val / start_val) ** (1 / 3) - 1
+            cagr = (end_val / start_val) ** (1 / n_years) - 1
             scores[code] = cagr * 100
         except Exception:
             scores[code] = np.nan
     raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-50, 100)) * 0.25
+    return minmax_scale(raw.clip(-50, 100), lower=0, upper=25)
 
 
 def _revenue_acceleration(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """매출 성장 가속도 (최근 4분기 추세 기울기) → 0~25점."""
+    """매출 성장 가속도 (연도별 추세 기울기) → 0~25점."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
-            rev = _extract_quarterly(df, "매출액")
-            if rev is None or len(rev) < 8:
+            rev = _extract_by_year(df, "매출액")
+            if rev is None or len(rev) < 2:
                 scores[code] = np.nan
                 continue
-            recent4 = rev.iloc[-4:].values.astype(float)
-            x = np.arange(4)
-            # 선형 회귀 기울기 (numpy polyfit)
-            slope = np.polyfit(x, recent4, 1)[0]
-            base = abs(recent4.mean()) if recent4.mean() != 0 else 1
+            vals = rev.values.astype(float)
+            x = np.arange(len(vals))
+            slope = np.polyfit(x, vals, 1)[0]
+            base = abs(vals.mean()) if vals.mean() != 0 else 1
             scores[code] = slope / base * 100
         except Exception:
             scores[code] = np.nan
     raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-50, 50)) * 0.25
+    return minmax_scale(raw.clip(-50, 50), lower=0, upper=25)
 
 
 def score_growth(
@@ -110,42 +107,105 @@ def score_growth(
     codes = universe["code"].tolist()
     fin = {c: financials.get(c, pd.DataFrame()) for c in codes}
 
-    s1 = _revenue_yoy(fin)
-    s2 = _operating_profit_yoy(fin)
-    s3 = _eps_cagr(fin)
-    s4 = _revenue_acceleration(fin)
+    s1 = _revenue_yoy(fin)           # 0~25
+    s2 = _operating_profit_yoy(fin)  # 0~25
+    s3 = _eps_cagr(fin)              # 0~25
+    s4 = _revenue_acceleration(fin)  # 0~25
 
     total = (
         s1.reindex(codes).fillna(0)
         + s2.reindex(codes).fillna(0)
         + s3.reindex(codes).fillna(0)
         + s4.reindex(codes).fillna(0)
-    ) * 100  # 각 항목이 0~0.25이므로 합산 후 100배 → 0~100
+    )  # 합산 범위 0~100, 별도 배율 없음
 
     result = clip_score(total)
     result.index = codes
     return result
 
 
-# ── 헬퍼 ──────────────────────────────────────────────────────────────────────
+# ── DART 계정 매핑 (IFRS account_id 우선, account_nm 한글명 보조) ────────────────
+_ACCOUNT_MAP = {
+    "매출액": {
+        "id_patterns": ["Revenue", "Sales"],
+        "nm_patterns": ["매출액", "영업수익", "수익(매출액)", "매출"],
+        "sj_div": "IS",
+        "exclude_nm": ["매출원가", "매출채권", "매출총이익"],
+    },
+    "영업이익": {
+        "id_patterns": ["OperatingIncome", "OperatingProfit"],
+        "nm_patterns": ["영업이익"],
+        "sj_div": "IS",
+        "exclude_nm": [],
+    },
+    "주당순이익": {
+        "id_patterns": ["BasicEarnings"],
+        "nm_patterns": ["기본주당이익", "주당순이익"],
+        "sj_div": "IS",
+        "exclude_nm": ["희석"],
+    },
+}
+
+
+def _extract_by_year(df: pd.DataFrame, account: str) -> pd.Series | None:
+    """
+    DART finstate_all 결과에서 연도별 계정 금액 시계열 추출.
+    account_id (IFRS 코드) 우선 매칭, account_nm 한글명 보조.
+    """
+    if df.empty or "bsns_year" not in df.columns:
+        return None
+
+    mapping = _ACCOUNT_MAP.get(account)
+    if mapping is None:
+        return None
+
+    # IS 구분 필터
+    is_df = df[df.get("sj_div", pd.Series(dtype=str)) == mapping["sj_div"]].copy() if "sj_div" in df.columns else df.copy()
+    if is_df.empty:
+        return None
+
+    # account_id 패턴 매칭
+    matched = pd.DataFrame()
+    if "account_id" in is_df.columns:
+        for pat in mapping["id_patterns"]:
+            cands = is_df[is_df["account_id"].str.contains(pat, na=False, case=False)]
+            if not cands.empty:
+                matched = cands
+                break
+
+    # account_nm 폴백
+    if matched.empty and "account_nm" in is_df.columns:
+        for pat in mapping["nm_patterns"]:
+            cands = is_df[is_df["account_nm"].str.contains(pat, na=False)]
+            if not cands.empty:
+                # 제외 패턴 적용
+                for excl in mapping["exclude_nm"]:
+                    cands = cands[~cands["account_nm"].str.contains(excl, na=False)]
+                if not cands.empty:
+                    matched = cands
+                    break
+
+    if matched.empty:
+        return None
+
+    val_col = "thstrm_amount"
+    if val_col not in matched.columns:
+        return None
+
+    # 연도별 집계 (중복 시 첫 번째 값 사용)
+    yearly = (
+        matched.groupby("bsns_year")[val_col]
+        .first()
+        .apply(lambda x: pd.to_numeric(x, errors="coerce"))
+        .sort_index()
+    )
+    return yearly if len(yearly) >= 1 else None
+
 
 def _extract_quarterly(df: pd.DataFrame, account: str) -> pd.Series | None:
-    """재무 DataFrame에서 특정 계정과목의 분기별 시계열 추출."""
-    if df.empty:
-        return None
-    col_candidates = [c for c in df.columns if "계정" in c or "account" in c.lower()]
-    val_candidates = [c for c in df.columns if "금액" in c or "amount" in c.lower() or "thstrm" in c.lower()]
-    if not col_candidates or not val_candidates:
-        return None
-    acct_col = col_candidates[0]
-    val_col = val_candidates[0]
-    sub = df[df[acct_col].str.contains(account, na=False)].copy()
-    if sub.empty:
-        return None
-    sub[val_col] = pd.to_numeric(sub[val_col], errors="coerce")
-    return sub[val_col].reset_index(drop=True)
+    """연도별 시계열 반환 (하위 호환용 별칭)."""
+    return _extract_by_year(df, account)
 
 
 def _extract_annual(df: pd.DataFrame, account: str) -> pd.Series | None:
-    """연간 집계 시계열 추출 (분기 합산 또는 연간 보고서)."""
-    return _extract_quarterly(df, account)
+    return _extract_by_year(df, account)

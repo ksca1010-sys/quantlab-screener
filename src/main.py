@@ -65,6 +65,8 @@ def _build_market_data(universe: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
         records.append(rec)
         time.sleep(0.05)
 
+    if not records:
+        return pd.DataFrame(columns=["code", "per", "pbr", "dividend_yield", "peg", "roe", "operating_margin", "debt_ratio", "interest_coverage"])
     return pd.DataFrame(records)
 
 
@@ -183,9 +185,9 @@ def print_summary(result: pd.DataFrame) -> None:
 
     print("\n다음 단계 제안")
     print("-" * 70)
-    print("  1. DART_API_KEY 설정 시 Growth/Quality 점수가 활성화됩니다.")
-    print("  2. --as-of-date 옵션으로 과거 특정 시점 백테스트 가능합니다.")
-    print("  3. output/stocks_top100.csv 로 스프레드시트 분석을 추천합니다.")
+    print("  1. pykrx PER/PBR 복구 시 Value/Quality 점수가 더 정확해집니다.")
+    print("  2. --as-of-date 옵션으로 과거 특정 시점 백테스트가 가능합니다.")
+    print("  3. output/stocks_top100.csv 를 스프레드시트로 열어 추가 분석을 권장합니다.")
     print("=" * 70)
 
 
@@ -196,10 +198,14 @@ def main() -> None:
         action="store_true",
         help="universe.yaml 재생성",
     )
+    # 기본값: 최근 영업일 (주말이면 금요일로 롤백)
+    from pandas.tseries.offsets import BDay
+    _today = pd.Timestamp.today()
+    _ref = _today - BDay(1) if _today.weekday() >= 5 else _today
     parser.add_argument(
         "--as-of-date",
-        default=date.today().strftime("%Y-%m-%d"),
-        help="분석 기준일 (YYYY-MM-DD, 기본: 오늘)",
+        default=_ref.strftime("%Y-%m-%d"),
+        help="분석 기준일 (YYYY-MM-DD, 기본: 최근 영업일)",
     )
     args = parser.parse_args()
 

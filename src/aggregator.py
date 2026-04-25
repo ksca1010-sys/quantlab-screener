@@ -20,10 +20,10 @@ def aggregate(
     df = universe[["code", "name", "market", "sector", "market_cap"]].copy()
     df = df.set_index("code")
 
-    df["Growth"] = growth.reindex(df.index).fillna(0).round(2)
-    df["Value"] = value.reindex(df.index).fillna(0).round(2)
-    df["Quality"] = quality.reindex(df.index).fillna(0).round(2)
-    df["Trend"] = trend.reindex(df.index).fillna(0).round(2)
+    df["Growth"] = pd.to_numeric(growth.reindex(df.index), errors="coerce").fillna(0).round(2)
+    df["Value"] = pd.to_numeric(value.reindex(df.index), errors="coerce").fillna(0).round(2)
+    df["Quality"] = pd.to_numeric(quality.reindex(df.index), errors="coerce").fillna(0).round(2)
+    df["Trend"] = pd.to_numeric(trend.reindex(df.index), errors="coerce").fillna(0).round(2)
 
     df["Total"] = (
         0.25 * df["Growth"]

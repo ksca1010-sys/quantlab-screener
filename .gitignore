@@ -1,6 +1,7 @@
 .env
 .venv/
 .omc/
+docs_cache/
 __pycache__/
 *.pyc
 *.pyo
