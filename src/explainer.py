@@ -14,7 +14,7 @@ def _pct_rank(value: float, series: pd.Series) -> int:
 
 
 def _sector_pct_rank(code: str, df: pd.DataFrame, axis: str) -> tuple[int, int]:
-    """섹터 내 백분위 순위 반환 (rank, sector_size)."""
+    """업종 내 백분위 순위 반환 (rank, sector_size)."""
     row = df[df["code"] == code]
     if row.empty:
         return 0, 0
@@ -33,7 +33,7 @@ def growth_reason(code: str, df: pd.DataFrame) -> str:
     rank = _pct_rank(score, df["Growth"])
     s_rank, s_size = _sector_pct_rank(code, df, "Growth")
     total = len(df)
-    sector_note = f" | 섹터 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
+    sector_note = f" | 업종 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
 
     if score == 0:
         return "⚠️ DART 재무 데이터 미확보 (연결재무제표 없음 또는 공시 미게재)"
@@ -65,25 +65,25 @@ def value_reason(code: str, df: pd.DataFrame) -> str:
     rank = _pct_rank(score, df["Value"])
     s_rank, s_size = _sector_pct_rank(code, df, "Value")
     total = len(df)
-    sector_note = f" | 섹터 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
+    sector_note = f" | 업종 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
 
     if abs(score - 37.5) < 0.1:
         return "⚠️ PER/PBR 시장 데이터 미확보 (pykrx API 일시 불능) — 배당수익률 중립값 적용"
     elif score >= 60:
         return (
-            f"✅ 섹터 내 PER·PBR 하위권 (저평가 구간) — Value 점수 **{score:.1f}점**, "
+            f"✅ 업종 내 PER·PBR 하위권 (저평가 구간) — Value 점수 **{score:.1f}점**, "
             f"**{rank}위/{total}위**{sector_note}."
             f" 현재 주가 대비 이익·자산가치 매력도 높음."
         )
     elif score >= 40:
         return (
-            f"🔵 섹터 내 밸류에이션 **{rank}위/{total}위**{sector_note}"
+            f"🔵 업종 내 밸류에이션 **{rank}위/{total}위**{sector_note}"
             f" — Value 점수 **{score:.1f}점**."
             f" 적정 가격 구간, 고평가·저평가 중립."
         )
     else:
         return (
-            f"🔴 섹터 내 PER·PBR 상위권 (고평가 구간) — Value 점수 **{score:.1f}점**, "
+            f"🔴 업종 내 PER·PBR 상위권 (고평가 구간) — Value 점수 **{score:.1f}점**, "
             f"**{rank}위/{total}위**{sector_note}."
             f" 현재 주가가 이익·자산 대비 프리미엄. 성장성으로 정당화 여부 확인 필요."
         )
@@ -97,7 +97,7 @@ def quality_reason(code: str, df: pd.DataFrame) -> str:
     rank = _pct_rank(score, df["Quality"])
     s_rank, s_size = _sector_pct_rank(code, df, "Quality")
     total = len(df)
-    sector_note = f" | 섹터 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
+    sector_note = f" | 업종 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
 
     if abs(score - 50.0) < 0.1:
         return "⚠️ ROE·부채비율 데이터 미확보 (pykrx API 일시 불능) — 중립값 적용"
@@ -129,7 +129,7 @@ def trend_reason(code: str, df: pd.DataFrame) -> str:
     rank = _pct_rank(score, df["Trend"])
     s_rank, s_size = _sector_pct_rank(code, df, "Trend")
     total = len(df)
-    sector_note = f" | 섹터 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
+    sector_note = f" | 업종 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
 
     if score >= 90:
         return (

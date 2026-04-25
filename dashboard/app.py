@@ -35,7 +35,7 @@ AXIS_COLORS = {
 }
 AXIS_TOOLTIPS = {
     "Growth": "YoY 매출성장률·영업이익성장률 (DART 공시 기반)",
-    "Value": "PER·PBR 섹터 내 백분위 + 배당수익률",
+    "Value": "PER·PBR 업종 내 백분위 + 배당수익률",
     "Quality": "ROE·영업이익률·부채비율·이익잉여금",
     "Trend": "이동평균 배열(20/60/120일) + 52주 위치 + 거래량",
 }
@@ -399,7 +399,7 @@ def main() -> None:
         col_s2.metric("최저점", f"{all_total.min():.1f}")
         col_s3, col_s4 = st.columns(2)
         col_s3.metric("중앙값", f"{all_total.median():.1f}")
-        col_s4.metric("섹터 수", f"{df['sector'].nunique()}개")
+        col_s4.metric("업종 수", f"{df['sector'].nunique()}개")
 
         st.divider()
 
@@ -493,7 +493,7 @@ def main() -> None:
             tbl_height = len(display) * row_height + header_height
             st.dataframe(
                 display[["rank", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급"]]
-                .rename(columns={"rank": "순위", "market": "시장", "sector": "섹터", "Total": "종합점수"}),
+                .rename(columns={"rank": "순위", "market": "시장", "sector": "업종", "Total": "종합점수"}),
                 use_container_width=True,
                 height=tbl_height,
                 column_config={
@@ -504,7 +504,7 @@ def main() -> None:
             )
 
             st.divider()
-            with st.expander("🏆 섹터별 TOP 종목"):
+            with st.expander("🏆 업종별 TOP 종목"):
                 sector_top = (
                     fdf.reset_index()
                     .sort_values("Total", ascending=False)
@@ -716,6 +716,53 @@ def main() -> None:
                     st.warning(f"히스토그램 오류: {e}")
 
             col_c, col_d = st.columns(2)
+
+            # 업종별 평균 종합점수 차트 (섹터 재분류 반영)
+            col_sector_chart, col_sector_count = st.columns(2)
+            with col_sector_chart:
+                try:
+                    sec_avg = (
+                        fdf.groupby("sector")["Total"].mean()
+                        .sort_values(ascending=True)
+                        .reset_index()
+                    )
+                    fig_sec = px.bar(
+                        sec_avg, x="Total", y="sector", orientation="h",
+                        title="업종별 평균 종합점수",
+                        color="Total",
+                        color_continuous_scale="RdYlGn",
+                        labels={"Total": "평균점수", "sector": "업종"},
+                    )
+                    fig_sec.update_layout(
+                        **PLOTLY_BASE,
+                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[0, 100]),
+                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title=""),
+                        coloraxis_showscale=False,
+                        height=400,
+                    )
+                    st.plotly_chart(fig_sec, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"업종별 차트 오류: {e}")
+
+            with col_sector_count:
+                try:
+                    sec_cnt = fdf["sector"].value_counts().reset_index()
+                    sec_cnt.columns = ["업종", "종목 수"]
+                    fig_cnt = px.pie(
+                        sec_cnt, names="업종", values="종목 수",
+                        title="업종별 종목 수 비중",
+                        hole=0.45,
+                    )
+                    fig_cnt.update_layout(
+                        **PLOTLY_BASE,
+                        showlegend=True,
+                        legend=dict(font=dict(size=10), orientation="v"),
+                        height=400,
+                    )
+                    fig_cnt.update_traces(textposition="inside", textinfo="percent+label")
+                    st.plotly_chart(fig_cnt, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"업종 비중 차트 오류: {e}")
 
             with col_c:
                 try:
