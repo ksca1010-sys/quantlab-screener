@@ -35,8 +35,8 @@ AXIS_COLORS = {
 }
 AXIS_TOOLTIPS = {
     "Growth": "YoY 매출성장률·영업이익성장률 (DART 공시 기반). — 표시는 공시 데이터 미집계.",
-    "Value": "PER·PBR 업종 내 백분위 + 배당수익률. — 표시는 시세 API 미수신.",
-    "Quality": "ROE·영업이익률·부채비율·이익잉여금. — 표시는 시세 API 미수신.",
+    "Value": "PER·PBR 업종 내 백분위 + 배당수익률. ⚪ 표시는 API 미수신으로 중립값(37.5) 적용.",
+    "Quality": "ROE·영업이익률·부채비율·이익잉여금. ⚪ 표시는 API 미수신으로 중립값(50.0) 적용.",
     "Trend": "최근 주가가 중장기 평균(20·60·120일) 위에 있을수록 높은 점수. 52주 신고가 근접 + 거래량 증가 시 가산.",
 }
 REQUIRED_COLS = ["name", "code", "market", "sector"] + AXES + ["Total"]
@@ -527,10 +527,10 @@ def main() -> None:
                 lambda x: "—" if x == 0 else f"{color_score(x)} {x:.1f}"
             )
             display["가치"] = display["Value"].apply(
-                lambda x: "—" if abs(x - 37.5) < 0.1 else f"{color_score(x)} {x:.1f}"
+                lambda x: f"⚪ {x:.1f}" if abs(x - 37.5) < 0.1 else f"{color_score(x)} {x:.1f}"
             )
             display["펀더멘털"] = display["Quality"].apply(
-                lambda x: "—" if abs(x - 50.0) < 0.1 else f"{color_score(x)} {x:.1f}"
+                lambda x: f"⚪ {x:.1f}" if abs(x - 50.0) < 0.1 else f"{color_score(x)} {x:.1f}"
             )
             display["추세"] = display["Trend"].apply(lambda x: f"{color_score(x)} {x:.1f}")
             display["등급"] = display["Total"].apply(
