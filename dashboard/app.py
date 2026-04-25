@@ -305,7 +305,7 @@ def _get_analyst_data(code: str) -> tuple:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _get_current_price(code: str) -> int | None:
+def _get_current_price(code: str):
     return fetch_current_price(code)
 
 
