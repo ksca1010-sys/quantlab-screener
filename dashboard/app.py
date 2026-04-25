@@ -13,7 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.explainer import explain_stock
-from src.analyst import fetch_consensus, fetch_report_titles
+from src.analyst import fetch_consensus, fetch_current_price, fetch_report_titles
 
 st.set_page_config(
     page_title="QuantLab Screener",
@@ -302,6 +302,11 @@ def _get_analyst_data(code: str) -> tuple:
     consensus = fetch_consensus(code)
     reports = fetch_report_titles(code)
     return consensus, reports
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_current_price(code: str) -> int | None:
+    return fetch_current_price(code)
 
 
 def _render_analyst_section(code: str, name: str) -> None:
@@ -724,7 +729,7 @@ def main() -> None:
 
             st.markdown("---")
             st.markdown("**📡 진입 분석**")
-            ic1, ic2, ic3 = st.columns(3)
+            ic1, ic2, ic3, ic4 = st.columns(4)
             row_dict = row.to_dict() if hasattr(row, "to_dict") else {}
             _rsi = row_dict.get("RSI")
             _pos = row_dict.get("week52_pos")
@@ -742,6 +747,21 @@ def main() -> None:
                 sig_map = {"매수유망": "🟢 매수유망", "관심": "🔵 관심",
                            "과열주의": "🔴 과열주의", "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
                 ic3.metric("진입 신호", sig_map.get(_sig, _sig))
+            # 목표주가 상승여력
+            try:
+                _cur = _get_current_price(code)
+                _cons, _ = _get_analyst_data(code)
+                _tp = _cons.target_price if _cons and not _cons.error else None
+                if _cur and _tp and _cur > 0:
+                    upside = (_tp - _cur) / _cur * 100
+                    upside_delta = f"목표 {_tp:,}원"
+                    ic4.metric("목표주가 상승여력", f"{upside:+.1f}%", delta=upside_delta,
+                               delta_color="normal" if upside >= 0 else "inverse",
+                               help="컨센서스 목표주가 기준 현재가 대비 상승여력 (Naver Finance)")
+                else:
+                    ic4.metric("목표주가 상승여력", "—", help="컨센서스 데이터 없음")
+            except Exception:
+                ic4.metric("목표주가 상승여력", "—")
 
             st.markdown("---")
             st.markdown("**선별 근거**")

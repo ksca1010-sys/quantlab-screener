@@ -123,6 +123,23 @@ def fetch_consensus(code: str) -> AnalystConsensus:
     return result
 
 
+def fetch_current_price(code: str) -> Optional[int]:
+    """Naver 모바일 API에서 현재가(종가) 조회."""
+    url = f"https://m.stock.naver.com/api/stock/{code}/basic"
+    try:
+        resp = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        price = data.get("closePrice") or data.get("currentPrice")
+        if price is None:
+            return None
+        return int(str(price).replace(",", ""))
+    except Exception as e:
+        logger.warning("현재가 조회 실패 [%s]: %s", code, e)
+        return None
+
+
 def fetch_report_titles(code: str) -> list[dict]:
     """Naver 모바일 API에서 최근 리포트 제목·증권사 메타 조회."""
     url = _NAVER_RESEARCH_URL.format(code=code)
