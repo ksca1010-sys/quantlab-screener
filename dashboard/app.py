@@ -512,10 +512,15 @@ def main() -> None:
                 mime="text/csv",
             )
 
-            display = fdf.reset_index()[
-                ["rank", "name", "code", "market", "sector",
-                 "Growth", "Value", "Quality", "Trend", "Total"]
-            ].copy().sort_values("Total", ascending=False)
+            display = (
+                fdf.reset_index()[
+                    ["name", "code", "market", "sector",
+                     "Growth", "Value", "Quality", "Trend", "Total"]
+                ]
+                .sort_values("Total", ascending=False)
+                .reset_index(drop=True)
+            )
+            display.insert(0, "순위", range(1, len(display) + 1))
 
             display["종목"] = display["name"] + " (" + display["code"] + ")"
             display["성장"] = display["Growth"].apply(
@@ -538,9 +543,10 @@ def main() -> None:
             header_height = 38
             tbl_height = len(display) * row_height + header_height
             st.dataframe(
-                display[["rank", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급", "데이터"]]
-                .rename(columns={"rank": "순위", "market": "시장", "sector": "업종", "Total": "종합점수", "데이터": "데이터품질"}),
+                display[["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급", "데이터"]]
+                .rename(columns={"market": "시장", "sector": "업종", "Total": "종합점수", "데이터": "데이터품질"}),
                 use_container_width=True,
+                hide_index=True,
                 height=tbl_height,
                 column_config={
                     "종합점수": st.column_config.ProgressColumn(
