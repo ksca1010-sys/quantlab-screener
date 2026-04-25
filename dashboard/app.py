@@ -428,6 +428,16 @@ def main() -> None:
 
         search = ""
 
+        has_signal = "entry_signal" in df.columns
+        if has_signal:
+            all_signals = ["전체", "매수유망", "관심", "과열주의", "대기", "확인필요"]
+            signal_icons = {"매수유망": "🟢", "관심": "🔵", "과열주의": "🔴", "대기": "⚪", "확인필요": "❓"}
+            signal_labels = ["전체"] + [f"{signal_icons.get(s,'')} {s}" for s in all_signals[1:]]
+            sel_signal_label = st.selectbox("진입 신호", signal_labels)
+            sel_signal = all_signals[signal_labels.index(sel_signal_label)]
+        else:
+            sel_signal = "전체"
+
         if st.button("필터 초기화", use_container_width=True):
             st.session_state.tab2_search = ""
             st.rerun()
@@ -465,6 +475,8 @@ def main() -> None:
         fdf = fdf[fdf["market"] == sel_market]
     if sel_sector != "전체":
         fdf = fdf[fdf["sector"] == sel_sector]
+    if sel_signal != "전체" and "entry_signal" in fdf.columns:
+        fdf = fdf[fdf["entry_signal"] == sel_signal]
 
     # ── 헤더 요약 ─────────────────────────────────────────────────────────────
     st.title("QuantLab Screener Dashboard")
@@ -512,11 +524,11 @@ def main() -> None:
                 mime="text/csv",
             )
 
+            base_cols = ["name", "code", "market", "sector",
+                         "Growth", "Value", "Quality", "Trend", "Total"]
+            extra_cols = [c for c in ["RSI", "week52_pos", "entry_signal"] if c in fdf.columns]
             display = (
-                fdf.reset_index()[
-                    ["name", "code", "market", "sector",
-                     "Growth", "Value", "Quality", "Trend", "Total"]
-                ]
+                fdf.reset_index()[base_cols + extra_cols]
                 .sort_values("Total", ascending=False, kind="stable")
                 .reset_index(drop=True)
             )
@@ -538,12 +550,26 @@ def main() -> None:
             )
             display["데이터"] = display.apply(data_quality_label, axis=1)
 
+            _signal_icon = {"매수유망": "🟢 매수유망", "관심": "🔵 관심",
+                            "과열주의": "🔴 과열주의", "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
+            if "entry_signal" in display.columns:
+                display["진입신호"] = display["entry_signal"].map(lambda x: _signal_icon.get(x, x))
+            if "RSI" in display.columns:
+                display["RSI"] = display["RSI"].apply(lambda x: f"{x:.0f}" if pd.notna(x) else "—")
+            if "week52_pos" in display.columns:
+                display["52주위치"] = display["week52_pos"].apply(lambda x: f"{x:.0f}%" if pd.notna(x) else "—")
+
+            show_cols = ["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급"]
+            if "진입신호" in display.columns:
+                show_cols += ["진입신호", "RSI", "52주위치"]
+            show_cols += ["데이터"]
+
             st.caption("💡 컬럼 헤더 클릭으로 정렬 | 기본: 종합점수 내림차순")
             row_height = 35
             header_height = 38
             tbl_height = len(display) * row_height + header_height
             st.dataframe(
-                display[["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급", "데이터"]]
+                display[show_cols]
                 .rename(columns={"market": "시장", "sector": "업종", "Total": "종합점수", "데이터": "데이터품질"}),
                 use_container_width=True,
                 hide_index=True,
@@ -695,6 +721,27 @@ def main() -> None:
                     for i, axis in enumerate(AXES):
                         pct = float(row[axis]) / axis_sum * 100
                         contrib_cols[i].metric(AXIS_LABELS[axis], f"{pct:.0f}%")
+
+            st.markdown("---")
+            st.markdown("**📡 진입 분석**")
+            ic1, ic2, ic3 = st.columns(3)
+            row_dict = row.to_dict() if hasattr(row, "to_dict") else {}
+            _rsi = row_dict.get("RSI")
+            _pos = row_dict.get("week52_pos")
+            _sig = row_dict.get("entry_signal")
+            if _rsi is not None and pd.notna(_rsi):
+                rsi_v = float(_rsi)
+                rsi_desc = "과매수 주의" if rsi_v > 70 else "과매도 반등 구간" if rsi_v < 30 else "적정 구간"
+                ic1.metric("RSI(14)", f"{rsi_v:.0f}", delta=rsi_desc, delta_color="off",
+                           help="30 이하: 과매도(매수 기회), 70 이상: 과매수(차익실현 주의)")
+            if _pos is not None and pd.notna(_pos):
+                pos_v = float(_pos)
+                ic2.metric("52주 위치", f"{pos_v:.0f}%",
+                           help="52주 저가=0%, 고가=100%. 20~70% 구간이 진입 적정")
+            if _sig:
+                sig_map = {"매수유망": "🟢 매수유망", "관심": "🔵 관심",
+                           "과열주의": "🔴 과열주의", "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
+                ic3.metric("진입 신호", sig_map.get(_sig, _sig))
 
             st.markdown("---")
             st.markdown("**선별 근거**")
