@@ -389,7 +389,7 @@ def main() -> None:
         st.code("source .venv/bin/activate\npython -m src.main", language="bash")
         st.markdown("생성 완료 후 사이드바의 **데이터 새로고침** 버튼을 클릭하세요.")
         with st.sidebar:
-            st.title("📊 QuantLab")
+            st.title("📊 QuantLab Screener")
             if st.button("데이터 새로고침"):
                 st.cache_data.clear()
                 st.rerun()
@@ -397,40 +397,40 @@ def main() -> None:
 
     # ── 사이드바 ──────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.title("📊 QuantLab")
+        st.title("📊 QuantLab Screener")
         st.caption("KOSPI + KOSDAQ 시총 상위 100개 4축 스코어링")
         st.caption(f"📅 데이터 업데이트: {_last_updated()}")
         st.divider()
 
         st.subheader("필터")
-        search = st.text_input(
-            "종목명/코드 검색",
-            value=st.session_state.search_query,
-            placeholder="삼성, 005930 ...",
-        )
-        st.session_state.search_query = search
 
         market_order = ["KOSPI", "KOSDAQ", "KOSDAQ GLOBAL"]
         avail_markets = [m for m in market_order if m in df["market"].values]
-        sel_market = st.selectbox("시장", ["전체"] + avail_markets)
+        sel_market = st.radio(
+            "시장",
+            ["전체"] + avail_markets,
+            horizontal=True,
+        )
 
-        sectors = ["전체"] + sorted(df["sector"].unique().tolist())
-        sel_sector = st.selectbox("업종", sectors)
+        SECTOR_ICONS = {
+            "전기·전자": "💡", "의약품": "💊", "기계": "⚙️",
+            "서비스업": "🌐", "운수장비": "🚗", "은행": "🏦",
+            "화학": "🧪", "증권": "📈", "건설업": "🏗️",
+            "운수·창고업": "✈️", "철강·금속": "🔩", "보험업": "🛡️",
+            "통신업": "📡", "음식료품": "🍜", "화장품·의류": "💄",
+            "전기·가스업": "⚡", "담배": "🌿",
+        }
+        raw_sectors = sorted(df["sector"].unique().tolist())
+        sector_labels = ["전체"] + [f"{SECTOR_ICONS.get(s, '📌')} {s}" for s in raw_sectors]
+        sector_values = ["전체"] + raw_sectors
+        sel_sector_label = st.selectbox("업종", sector_labels)
+        sel_sector = sector_values[sector_labels.index(sel_sector_label)]
 
-        # UX: Filter reset button
+        search = ""
+
         if st.button("필터 초기화", use_container_width=True):
-            st.session_state.search_query = ""
             st.session_state.tab2_search = ""
             st.rerun()
-
-        st.subheader("📊 유니버스 통계")
-        all_total = df["Total"]
-        col_s1, col_s2 = st.columns(2)
-        col_s1.metric("최고점", f"{all_total.max():.1f}")
-        col_s2.metric("최저점", f"{all_total.min():.1f}")
-        col_s3, col_s4 = st.columns(2)
-        col_s3.metric("중앙값", f"{all_total.median():.1f}")
-        col_s4.metric("업종 수", f"{df['sector'].nunique()}개")
 
         st.divider()
 
