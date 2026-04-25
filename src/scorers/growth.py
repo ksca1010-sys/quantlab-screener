@@ -159,8 +159,9 @@ def _extract_by_year(df: pd.DataFrame, account: str) -> pd.Series | None:
     if mapping is None:
         return None
 
-    # IS 구분 필터
-    is_df = df[df.get("sj_div", pd.Series(dtype=str)) == mapping["sj_div"]].copy() if "sj_div" in df.columns else df.copy()
+    # IS 구분 필터 — CIS(포괄손익계산서)도 허용 (IFRS 기업 다수가 CIS만 공시)
+    target_divs = {mapping["sj_div"], "CIS"} if mapping["sj_div"] == "IS" else {mapping["sj_div"]}
+    is_df = df[df["sj_div"].isin(target_divs)].copy() if "sj_div" in df.columns else df.copy()
     if is_df.empty:
         return None
 

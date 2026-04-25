@@ -70,6 +70,66 @@ def _build_market_data(universe: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def _enrich_from_dart(market_data: pd.DataFrame, financials: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """DART 재무제표(CIS/IS + BS)에서 ROE·영업이익률·부채비율·이자보상배율 계산하여 market_data 보강."""
+
+    def _val(df: pd.DataFrame, id_pat: str, nm_pat: str, divs: tuple) -> float:
+        sub = df[df["sj_div"].isin(divs)] if "sj_div" in df.columns else df
+        if "account_id" in sub.columns:
+            rows = sub[sub["account_id"].str.contains(id_pat, na=False, case=False)]
+            if not rows.empty:
+                try:
+                    return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
+                except Exception:
+                    pass
+        if "account_nm" in sub.columns:
+            rows = sub[sub["account_nm"].str.contains(nm_pat, na=False)]
+            if not rows.empty:
+                try:
+                    return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
+                except Exception:
+                    pass
+        return float("nan")
+
+    records = []
+    for code, df in financials.items():
+        if df.empty or "bsns_year" not in df.columns:
+            continue
+        df = df[df["bsns_year"] == df["bsns_year"].max()]
+        IS = ("IS", "CIS")
+        BS = ("BS",)
+        revenue    = _val(df, "Revenue",        "매출액",   IS)
+        op_income  = _val(df, "OperatingIncome", "영업이익", IS)
+        net_income = _val(df, "ProfitLoss",      "당기순이익", IS)
+        equity     = _val(df, "Equity",          "자본총계", BS)
+        liabilities= _val(df, "Liabilities",     "부채총계", BS)
+        fin_costs  = _val(df, "FinanceCosts",    "금융비용", IS)
+
+        def safe_div(a, b):
+            return (a / b * 100) if (not pd.isna(a) and not pd.isna(b) and b != 0) else float("nan")
+
+        records.append({
+            "code": code,
+            "roe":              safe_div(net_income, equity),
+            "operating_margin": safe_div(op_income,  revenue),
+            "debt_ratio":       safe_div(liabilities, equity),
+            "interest_coverage": (op_income / fin_costs) if (not pd.isna(op_income) and not pd.isna(fin_costs) and fin_costs > 0) else float("nan"),
+        })
+
+    if not records:
+        return market_data
+
+    dart_df = pd.DataFrame(records)
+    result = market_data.merge(dart_df, on="code", how="left", suffixes=("", "_dart"))
+    for col in ["roe", "operating_margin", "debt_ratio", "interest_coverage"]:
+        dart_col = f"{col}_dart"
+        if dart_col in result.columns:
+            mask = result[col].isna()
+            result.loc[mask, col] = result.loc[mask, dart_col]
+            result.drop(columns=[dart_col], inplace=True)
+    return result
+
+
 def _build_financial_data(universe: pd.DataFrame, as_of_date: str) -> dict[str, pd.DataFrame]:
     """DART에서 분기 재무 데이터 수집 (DART_API_KEY 필요)."""
     from src.data_loader import get_financial_data
@@ -137,6 +197,10 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     else:
         logger.warning("[4/6] DART_API_KEY 없음 → 재무 데이터 스킵 (Growth/Quality 0점)")
         financials = {row["code"]: pd.DataFrame() for _, row in universe.iterrows()}
+
+    # 4-b. DART 재무제표로 ROE·영업이익률·부채비율 보강
+    if dart_available:
+        market_data = _enrich_from_dart(market_data, financials)
 
     # 5. 스코어링
     logger.info("[5/6] 4축 스코어링...")
