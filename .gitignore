@@ -1,15 +1,29 @@
+# 비밀 및 환경 설정
 .env
+.streamlit/secrets.toml
+
+# 가상환경 및 빌드
 .venv/
-.omc/
-docs_cache/
 __pycache__/
 *.pyc
 *.pyo
-.DS_Store
-data/
-output/*
-!output/stocks_top100.csv
-.pytest_cache/
 *.egg-info/
 dist/
 build/
+
+# 내부 도구
+.omc/
+docs_cache/
+.pytest_cache/
+
+# OS
+.DS_Store
+
+# 데이터 (생성 파일)
+data/
+output/*
+!output/stocks_top100.csv
+config/universe.yaml
+
+# 내부 AI 프롬프트 (공개 불필요)
+PROMPT.md

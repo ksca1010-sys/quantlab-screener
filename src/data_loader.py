@@ -18,13 +18,25 @@ logger = logging.getLogger(__name__)
 _DART_SLEEP = 0.1
 
 
-def _dart_client():
-    """OpenDartReader 클라이언트 초기화."""
+def _get_dart_api_key() -> str:
+    """DART API 키 조회 — .env → Streamlit secrets 순서로 탐색."""
     import os
-    import OpenDartReader
     key = os.getenv("DART_API_KEY", "")
     if not key:
-        raise EnvironmentError("DART_API_KEY가 .env에 설정되지 않았습니다.")
+        try:
+            import streamlit as st
+            key = st.secrets.get("DART_API_KEY", "")
+        except Exception:
+            pass
+    return key
+
+
+def _dart_client():
+    """OpenDartReader 클라이언트 초기화."""
+    import OpenDartReader
+    key = _get_dart_api_key()
+    if not key:
+        raise EnvironmentError("DART_API_KEY가 .env 또는 Streamlit Secrets에 설정되지 않았습니다.")
     return OpenDartReader(key)
 
 
