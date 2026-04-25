@@ -517,7 +517,7 @@ def main() -> None:
                     ["name", "code", "market", "sector",
                      "Growth", "Value", "Quality", "Trend", "Total"]
                 ]
-                .sort_values("Total", ascending=False)
+                .sort_values("Total", ascending=False, kind="stable")
                 .reset_index(drop=True)
             )
             display.insert(0, "순위", range(1, len(display) + 1))
