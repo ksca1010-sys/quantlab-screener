@@ -379,13 +379,12 @@ def main() -> None:
         )
         st.session_state.search_query = search
 
-        markets = ["전체"] + sorted(df["market"].unique().tolist())
-        sel_market = st.selectbox("시장", markets)
-
-        score_min, score_max = st.slider("종합점수 범위", 0, 100, (0, 100), step=5)
+        market_order = ["KOSPI", "KOSDAQ", "KOSDAQ GLOBAL"]
+        avail_markets = [m for m in market_order if m in df["market"].values]
+        sel_market = st.selectbox("시장", ["전체"] + avail_markets)
 
         sectors = ["전체"] + sorted(df["sector"].unique().tolist())
-        sel_sector = st.selectbox("섹터", sectors)
+        sel_sector = st.selectbox("업종", sectors)
 
         # UX: Filter reset button
         if st.button("필터 초기화", use_container_width=True):
@@ -435,7 +434,6 @@ def main() -> None:
         fdf = fdf[fdf["market"] == sel_market]
     if sel_sector != "전체":
         fdf = fdf[fdf["sector"] == sel_sector]
-    fdf = fdf[(fdf["Total"] >= score_min) & (fdf["Total"] <= score_max)]
 
     # ── 헤더 요약 ─────────────────────────────────────────────────────────────
     st.title("QuantLab Screener Dashboard")
