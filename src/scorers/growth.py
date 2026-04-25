@@ -107,17 +107,25 @@ def score_growth(
     codes = universe["code"].tolist()
     fin = {c: financials.get(c, pd.DataFrame()) for c in codes}
 
-    s1 = _revenue_yoy(fin)           # 0~25
-    s2 = _operating_profit_yoy(fin)  # 0~25
+    # 가중치 근거:
+    # 영업이익(35%) — 핵심 현금창출력, 일회성 손익 제외한 본업 수익성
+    # 매출(30%)     — 탑라인 성장, 시장점유율 확대 여부
+    # EPS CAGR(25%) — 주주 귀속 이익 성장, 자본효율 반영
+    # 가속도(10%)   — 성장 트렌드 방향 보조 지표
+    s1 = _revenue_yoy(fin)           # 0~30
+    s2 = _operating_profit_yoy(fin)  # 0~35
     s3 = _eps_cagr(fin)              # 0~25
-    s4 = _revenue_acceleration(fin)  # 0~25
+    s4 = _revenue_acceleration(fin)  # 0~10
+
+    def _scale(s: pd.Series, upper: float) -> pd.Series:
+        return minmax_scale(s, lower=0, upper=upper)
 
     total = (
-        s1.reindex(codes).fillna(0)
-        + s2.reindex(codes).fillna(0)
-        + s3.reindex(codes).fillna(0)
-        + s4.reindex(codes).fillna(0)
-    )  # 합산 범위 0~100, 별도 배율 없음
+        _scale(s1.reindex(codes).fillna(0), 30)
+        + _scale(s2.reindex(codes).fillna(0), 35)
+        + _scale(s3.reindex(codes).fillna(0), 25)
+        + _scale(s4.reindex(codes).fillna(0), 10)
+    )  # 합산 범위 0~100
 
     result = clip_score(total)
     result.index = codes

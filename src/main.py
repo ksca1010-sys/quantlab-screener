@@ -213,6 +213,18 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     logger.info("[6/6] 집계 및 결과 저장...")
     result = aggregate(universe, growth, value, quality, trend)
 
+    # 섹터 고정값 적용 (config/sector_map.yaml 우선 — pykrx 실패로 덮어씌워지는 것 방지)
+    sector_map_path = os.path.join(os.path.dirname(__file__), "..", "config", "sector_map.yaml")
+    if os.path.exists(sector_map_path):
+        import yaml
+        with open(sector_map_path, encoding="utf-8") as f:
+            sector_map = yaml.safe_load(f)
+        result["code_str"] = result["code"].astype(str).str.zfill(6)
+        fixed = result["code_str"].map(sector_map)
+        result["sector"] = fixed.where(fixed.notna(), result["sector"])
+        result.drop(columns=["code_str"], inplace=True)
+        logger.info("섹터 고정값 적용 완료 (config/sector_map.yaml)")
+
     output_dir = os.getenv("OUTPUT_DIR", "./output")
     out_path = f"{output_dir}/stocks_top100.csv"
     to_csv(result, out_path)
