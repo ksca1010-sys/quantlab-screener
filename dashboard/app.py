@@ -34,10 +34,10 @@ AXIS_COLORS = {
     "Total": "#F44336",
 }
 AXIS_TOOLTIPS = {
-    "Growth": "YoY 매출성장률·영업이익성장률 (DART 공시 기반)",
-    "Value": "PER·PBR 업종 내 백분위 + 배당수익률",
-    "Quality": "ROE·영업이익률·부채비율·이익잉여금",
-    "Trend": "이동평균 배열(20/60/120일) + 52주 위치 + 거래량",
+    "Growth": "YoY 매출성장률·영업이익성장률 (DART 공시 기반). — 표시는 공시 데이터 미집계.",
+    "Value": "PER·PBR 업종 내 백분위 + 배당수익률. — 표시는 시세 API 미수신.",
+    "Quality": "ROE·영업이익률·부채비율·이익잉여금. — 표시는 시세 API 미수신.",
+    "Trend": "최근 주가가 중장기 평균(20·60·120일) 위에 있을수록 높은 점수. 52주 신고가 근접 + 거래량 증가 시 가산.",
 }
 REQUIRED_COLS = ["name", "code", "market", "sector"] + AXES + ["Total"]
 
@@ -127,6 +127,17 @@ def load_data() -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     # Korean stock codes have leading zeros (005930); keep as str
     df["code"] = df["code"].astype(str)
+
+    # 전문가 패널 #1: Growth=0(데이터 없음)은 Total 산출에서 제외 → 유효 축 평균
+    def _adjusted_total(row: pd.Series) -> float:
+        valid = []
+        if row["Growth"] > 0:
+            valid.append(row["Growth"])
+        valid.extend([row["Value"], row["Quality"], row["Trend"]])
+        return round(sum(valid) / len(valid), 1)
+
+    df["Total"] = df.apply(_adjusted_total, axis=1)
+
     df = df.reset_index(drop=True)
     df.index = df.index + 1
     df.index.name = "rank"
@@ -140,26 +151,46 @@ def _last_updated() -> str:
     return "알 수 없음"
 
 
-# ── 투자등급 (CustMgmt: 중립 등급 라벨, 추천 오해 방지) ───────────────────────
-def investment_grade(score: float) -> str:
-    if score >= 60:
+# ── 투자등급 (분위 기반 동적 임계값 — 전문가 패널 #3) ──────────────────────────
+def investment_grade(score: float, thresholds: tuple[float, float, float] = (60, 50, 40)) -> str:
+    t1, t2, t3 = thresholds
+    if score >= t1:
         return "최우수"
-    elif score >= 50:
+    elif score >= t2:
         return "우수"
-    elif score >= 40:
+    elif score >= t3:
         return "보통"
     return "관찰"
 
 
-def grade_badge_html(score: float) -> str:
-    """Design: styled pill badge — accessible colors, no financial jargon."""
-    label = investment_grade(score)
+def grade_badge_html(score: float, thresholds: tuple[float, float, float] = (60, 50, 40)) -> str:
+    label = investment_grade(score, thresholds)
     cfg = GRADE_CONFIG[label]
     return (
         f'<span style="background:{cfg["bg"]};color:{cfg["text"]};'
         f'border:1px solid {cfg["border"]};padding:3px 12px;border-radius:12px;'
         f'font-size:0.82rem;font-weight:700;letter-spacing:0.04em;">{label}</span>'
     )
+
+
+def compute_grade_thresholds(df: pd.DataFrame) -> tuple[float, float, float]:
+    """유니버스 분위 기반 동적 등급 임계값 (상위20%/50%/80%)."""
+    return (
+        float(df["Total"].quantile(0.80)),
+        float(df["Total"].quantile(0.50)),
+        float(df["Total"].quantile(0.20)),
+    )
+
+
+def data_quality_label(row: pd.Series) -> str:
+    """전문가 패널 #5: 축별 실데이터 비율 표시."""
+    real = sum([
+        row["Growth"] > 0,
+        abs(row["Value"] - 37.5) > 0.5,
+        abs(row["Quality"] - 50.0) > 0.5,
+        True,  # Trend 항상 유효
+    ])
+    return {4: "●●●●", 3: "●●●○", 2: "●●○○", 1: "●○○○"}[real]
 
 
 # ── 차트 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -455,13 +486,19 @@ def main() -> None:
     st.divider()
 
     is_empty = fdf.empty
+    # 전문가 패널 #3: 전체 유니버스 기준 분위 임계값 계산
+    grade_thresholds = compute_grade_thresholds(df)
     tab1, tab2, tab3, tab4 = st.tabs(["📋 종목 랭킹", "🔍 종목 분석", "📈 분포 분석", "💬 시장 코멘트"])
 
     # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
     with tab1:
         st.subheader(f"종목 랭킹 ({len(fdf)}개)")
 
-        st.caption("등급: 최우수(≥60) · 우수(≥50) · 보통(≥40) · 관찰(<40) — 정량 스크리닝 결과, 투자 추천 아님")
+        t1, t2, t3 = grade_thresholds
+        st.caption(
+            f"등급(유니버스 분위): 최우수(상위20% ≥{t1:.1f}) · 우수(≥{t2:.1f}) · 보통(≥{t3:.1f}) · 관찰 "
+            "— 정량 스크리닝 결과, 투자 추천 아님"
+        )
 
         if is_empty:
             st.warning("필터 조건에 맞는 종목이 없습니다. 조건을 완화하거나 **필터 초기화**를 클릭하세요.")
@@ -481,19 +518,28 @@ def main() -> None:
             ].copy().sort_values("Total", ascending=False)
 
             display["종목"] = display["name"] + " (" + display["code"] + ")"
-            display["성장"] = display["Growth"].apply(lambda x: f"{color_score(x)} {x:.1f}")
-            display["가치"] = display["Value"].apply(lambda x: f"{color_score(x)} {x:.1f}")
-            display["펀더멘털"] = display["Quality"].apply(lambda x: f"{color_score(x)} {x:.1f}")
+            display["성장"] = display["Growth"].apply(
+                lambda x: "—" if x == 0 else f"{color_score(x)} {x:.1f}"
+            )
+            display["가치"] = display["Value"].apply(
+                lambda x: "—" if abs(x - 37.5) < 0.1 else f"{color_score(x)} {x:.1f}"
+            )
+            display["펀더멘털"] = display["Quality"].apply(
+                lambda x: "—" if abs(x - 50.0) < 0.1 else f"{color_score(x)} {x:.1f}"
+            )
             display["추세"] = display["Trend"].apply(lambda x: f"{color_score(x)} {x:.1f}")
-            display["등급"] = display["Total"].apply(investment_grade)
+            display["등급"] = display["Total"].apply(
+                lambda x: investment_grade(x, grade_thresholds)
+            )
+            display["데이터"] = display.apply(data_quality_label, axis=1)
 
             st.caption("💡 컬럼 헤더 클릭으로 정렬 | 기본: 종합점수 내림차순")
             row_height = 35
             header_height = 38
             tbl_height = len(display) * row_height + header_height
             st.dataframe(
-                display[["rank", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급"]]
-                .rename(columns={"rank": "순위", "market": "시장", "sector": "업종", "Total": "종합점수"}),
+                display[["rank", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "Total", "등급", "데이터"]]
+                .rename(columns={"rank": "순위", "market": "시장", "sector": "업종", "Total": "종합점수", "데이터": "데이터품질"}),
                 use_container_width=True,
                 height=tbl_height,
                 column_config={
@@ -515,7 +561,7 @@ def main() -> None:
                 cols = st.columns(min(4, len(sector_top)))
                 for i, (_, srow) in enumerate(sector_top.iterrows()):
                     with cols[i % len(cols)]:
-                        grade = investment_grade(srow["Total"])
+                        grade = investment_grade(srow["Total"], grade_thresholds)
                         st.markdown(
                             f"**{srow['sector']}**  \n"
                             f"{srow['name']}  \n"
@@ -588,7 +634,7 @@ def main() -> None:
                 total = float(row["Total"])
                 rank_val = int(row["rank"])
 
-                st.markdown(grade_badge_html(total), unsafe_allow_html=True)
+                st.markdown(grade_badge_html(total, grade_thresholds), unsafe_allow_html=True)
                 st.markdown("")
                 st.markdown(f"#### {name} 4축 점수")
 
