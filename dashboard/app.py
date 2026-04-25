@@ -440,28 +440,13 @@ def main() -> None:
     # ── 헤더 요약 ─────────────────────────────────────────────────────────────
     st.title("QuantLab Screener Dashboard")
 
-    # Design: elevated Total metric, others as standard st.metric
-    total_val = f"{fdf['Total'].mean():.1f}" if not fdf.empty else "—"
     hc1, hc2, hc3, hc4, hc5 = st.columns(5)
-    with hc1:
-        st.metric("종목 수", f"{len(fdf)}개")
-    with hc2:
-        st.markdown(
-            f'<div style="border:1px solid var(--border-subtle,rgba(128,128,128,0.25));'
-            f'border-radius:8px;padding:10px 14px;text-align:center;'
-            f'background:linear-gradient(135deg,rgba(33,150,243,0.08),rgba(244,67,54,0.05));">'
-            f'<div style="font-size:0.75rem;color:var(--text-muted,#888);margin-bottom:2px;">평균 종합점수</div>'
-            f'<div style="font-size:1.8rem;font-weight:700;letter-spacing:-0.02em;">{total_val}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    with hc3:
-        st.metric("평균 성장점수", f"{fdf['Growth'].mean():.1f}" if not fdf.empty else "—")
-    with hc4:
-        st.metric("평균 추세점수", f"{fdf['Trend'].mean():.1f}" if not fdf.empty else "—")
-    with hc5:
-        st.metric("KOSPI/KOSDAQ",
-                  f"{(fdf['market']=='KOSPI').sum()}/{(fdf['market']=='KOSDAQ').sum()}")
+    hc1.metric("종목 수", f"{len(fdf)}개")
+    hc2.metric("평균 종합점수", f"{fdf['Total'].mean():.1f}" if not fdf.empty else "—")
+    hc3.metric("평균 성장점수", f"{fdf['Growth'].mean():.1f}" if not fdf.empty else "—")
+    hc4.metric("평균 추세점수", f"{fdf['Trend'].mean():.1f}" if not fdf.empty else "—")
+    hc5.metric("KOSPI/KOSDAQ",
+               f"{(fdf['market']=='KOSPI').sum()}/{(fdf['market']=='KOSDAQ').sum()}")
 
     # CustMgmt: Data staleness banner
     st.caption(
