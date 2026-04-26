@@ -162,12 +162,24 @@ def _build_financial_data(universe: pd.DataFrame, as_of_date: str) -> dict[str, 
     from src.data_loader import get_financial_data
     import time
 
+    # 우선주 → 보통주 코드 매핑 (DART는 보통주 코드로만 공시)
+    _PREFERRED_PARENT: dict[str, str] = {
+        "005935": "005930",  # 삼성전자우 → 삼성전자
+        "005387": "005380",  # 현대차2우B → 현대차
+        "005385": "005380",  # 현대차우 → 현대차
+        "000271": "000270",  # 기아우 → 기아
+        "012451": "012450",  # 한화에어로스페이스우 → 한화에어로스페이스
+        "003601": "003600",  # SK우 → SK
+        "096771": "096770",  # SK이노베이션우 → SK이노베이션
+    }
+
     result: dict[str, pd.DataFrame] = {}
     codes = universe["code"].tolist()
 
     for code in tqdm(codes, desc="재무 데이터 수집 (DART)"):
-        df = get_financial_data(code, as_of_date)
-        result[code] = df
+        dart_code = _PREFERRED_PARENT.get(str(code).zfill(6), code)
+        df = get_financial_data(dart_code, as_of_date)
+        result[code] = df  # 원본 코드로 저장 (스코어링 인덱스 일치)
         time.sleep(0.1)  # DART 레이트 제한
 
     return result
