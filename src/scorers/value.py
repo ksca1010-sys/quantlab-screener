@@ -45,7 +45,7 @@ def _per_score(df: pd.DataFrame) -> pd.Series:
         return pd.Series(15.0, index=df.index)
     # ascending=False: 낮은 PER → 높은 분위수 → 높은 점수
     pct = sector_percentile(valid, "per", ascending=False)
-    full = pct.reindex(df.index).fillna(0.5)
+    full = pct.reindex(df.index).fillna(0)  # 데이터 없으면 0점 (허수 없음)
     return (full * 30).rename(None)
 
 
@@ -58,7 +58,7 @@ def _pbr_score(df: pd.DataFrame) -> pd.Series:
         return pd.Series(15.0, index=df.index)
     # ascending=False: 낮은 PBR → 높은 분위수 → 높은 점수
     pct = sector_percentile(valid, "pbr", ascending=False)
-    full = pct.reindex(df.index).fillna(0.5)
+    full = pct.reindex(df.index).fillna(0)  # 데이터 없으면 0점 (허수 없음)
     return (full * 30).rename(None)
 
 

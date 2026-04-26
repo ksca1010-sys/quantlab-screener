@@ -10,12 +10,71 @@ from functools import lru_cache
 
 import FinanceDataReader as fdr
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from pykrx import stock as krx
 
 logger = logging.getLogger(__name__)
 
 # DART API 레이트 제한 (호출 간 0.1초 sleep)
 _DART_SLEEP = 0.1
+
+_NAVER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://finance.naver.com/",
+    "Accept-Language": "ko-KR,ko;q=0.9",
+}
+
+
+@lru_cache(maxsize=512)
+def fetch_naver_fundamentals(code: str) -> dict:
+    """Naver Finance HTML에서 PER·PBR·배당수익률 스크래핑.
+
+    per_table 구조 (em[0] = 수치, "N/A" = 해당없음):
+      Row 0: 후행PER  Row 2: PBR  Row 3: 배당수익률
+    데이터가 없거나 N/A이면 해당 항목 NaN 반환 (허수 없음).
+    """
+    nan = float("nan")
+    result: dict = {"per": nan, "pbr": nan, "dividend_yield": nan}
+
+    def _to_float(text: str) -> float:
+        t = text.replace(",", "").replace("%", "").replace("배", "").strip()
+        if t in ("N/A", "-", "", "—"):
+            return nan
+        try:
+            return float(t)
+        except ValueError:
+            return nan
+
+    try:
+        resp = requests.get(
+            f"https://finance.naver.com/item/main.naver?code={code}",
+            headers=_NAVER_HEADERS,
+            timeout=8,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", class_="per_table")
+        if table is None:
+            return result
+        rows = table.find_all("tr")
+
+        def _em(row_idx: int) -> str:
+            if row_idx >= len(rows):
+                return "N/A"
+            ems = rows[row_idx].find_all("em")
+            return ems[0].get_text(strip=True) if ems else "N/A"
+
+        result["per"] = _to_float(_em(0))            # 후행 PER
+        result["pbr"] = _to_float(_em(2))            # PBR
+        result["dividend_yield"] = _to_float(_em(3)) # 배당수익률
+    except Exception as e:
+        logger.warning("[%s] Naver fundamentals 조회 실패: %s", code, e)
+
+    return result
 
 
 def _get_dart_api_key() -> str:

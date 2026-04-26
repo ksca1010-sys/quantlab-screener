@@ -30,44 +30,71 @@ def _check_dart_key() -> bool:
 
 
 def _build_market_data(universe: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
-    """
-    pykrx + OpenDartReader로 PER/PBR/ROE 등 지표 수집.
-    개별 종목 실패 시 NaN으로 처리하고 계속 진행.
-    """
-    from pykrx import stock as krx
+    """Naver Finance HTML에서 PER·PBR·배당수익률 수집. 허수 없음 — 미확보 시 NaN."""
+    from src.data_loader import fetch_naver_fundamentals
     import time
 
+    nan = float("nan")
     records = []
-    ref = as_of_date.replace("-", "")
-
     for _, row in tqdm(universe.iterrows(), total=len(universe), desc="시장 데이터 수집"):
-        code = row["code"]
+        code = str(row["code"]).zfill(6)
         rec: dict = {"code": code}
         try:
-            fundamental = krx.get_market_fundamental_by_ticker(ref)
-            if code in fundamental.index:
-                f = fundamental.loc[code]
-                rec["per"] = float(f.get("PER", float("nan")))
-                rec["pbr"] = float(f.get("PBR", float("nan")))
-                rec["dividend_yield"] = float(f.get("DIV", float("nan")))
-            else:
-                rec.update({"per": float("nan"), "pbr": float("nan"), "dividend_yield": float("nan")})
+            fund = fetch_naver_fundamentals(code)
+            rec["per"] = fund["per"]
+            rec["pbr"] = fund["pbr"]
+            rec["dividend_yield"] = fund["dividend_yield"]
         except Exception as e:
-            logger.warning("[%s] 펀더멘털 조회 실패: %s", code, e)
-            rec.update({"per": float("nan"), "pbr": float("nan"), "dividend_yield": float("nan")})
-
-        # 기본값 (DART 없이 추정 불가한 항목)
-        rec.setdefault("peg", float("nan"))
-        rec.setdefault("roe", float("nan"))
-        rec.setdefault("operating_margin", float("nan"))
-        rec.setdefault("debt_ratio", float("nan"))
-        rec.setdefault("interest_coverage", float("nan"))
+            logger.warning("[%s] 시장 데이터 조회 실패: %s", code, e)
+            rec.update({"per": nan, "pbr": nan, "dividend_yield": nan})
+        rec.update({"peg": nan, "roe": nan, "operating_margin": nan,
+                    "debt_ratio": nan, "interest_coverage": nan})
         records.append(rec)
-        time.sleep(0.05)
+        time.sleep(0.3)  # Naver 레이트 제한
 
     if not records:
-        return pd.DataFrame(columns=["code", "per", "pbr", "dividend_yield", "peg", "roe", "operating_margin", "debt_ratio", "interest_coverage"])
+        return pd.DataFrame(columns=["code", "per", "pbr", "dividend_yield", "peg",
+                                     "roe", "operating_margin", "debt_ratio", "interest_coverage"])
     return pd.DataFrame(records)
+
+
+def _compute_peg(market_data: pd.DataFrame, financials: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """PEG = PER ÷ EPS CAGR(%). 두 값 모두 실데이터일 때만 계산 — 허수 없음."""
+    from src.scorers.growth import _extract_by_year
+
+    peg_map: dict[str, float] = {}
+    for code, df in financials.items():
+        if df.empty:
+            continue
+        try:
+            eps = _extract_by_year(df, "주당순이익")
+            if eps is None or len(eps) < 2:
+                continue
+            end_val = float(eps.iloc[-1])
+            start_val = float(eps.iloc[0])
+            n_years = len(eps) - 1
+            if start_val <= 0 or end_val <= 0 or n_years == 0:
+                continue
+            eps_cagr_pct = ((end_val / start_val) ** (1 / n_years) - 1) * 100
+            if eps_cagr_pct <= 0:
+                continue
+            per_row = market_data[market_data["code"] == code]
+            if per_row.empty:
+                continue
+            per = float(per_row["per"].iloc[0])
+            if pd.isna(per) or per <= 0:
+                continue
+            peg_map[code] = per / eps_cagr_pct
+        except Exception:
+            continue
+
+    if not peg_map:
+        return market_data
+    peg_series = pd.Series(peg_map, name="peg_computed")
+    result = market_data.copy()
+    result = result.set_index("code")
+    result["peg"] = result["peg"].where(result["peg"].notna(), peg_series)
+    return result.reset_index()
 
 
 def _enrich_from_dart(market_data: pd.DataFrame, financials: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -201,6 +228,7 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     # 4-b. DART 재무제표로 ROE·영업이익률·부채비율 보강
     if dart_available:
         market_data = _enrich_from_dart(market_data, financials)
+        market_data = _compute_peg(market_data, financials)
 
     # 5. 스코어링
     logger.info("[5/6] 4축 스코어링...")
