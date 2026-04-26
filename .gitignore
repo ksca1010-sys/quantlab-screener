@@ -21,8 +21,7 @@ docs_cache/
 
 # 데이터 (생성 파일)
 data/
-output/*
-!output/stocks_top100.csv
+output/
 config/universe.yaml
 
 # 내부 AI 프롬프트 (공개 불필요)
