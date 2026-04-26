@@ -640,20 +640,27 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
 
     # 5축 선별 근거 상세
     st.markdown("**📝 5축 선별 근거 상세**")
-    reasons = explain_stock(code, fdf.reset_index())
+    _kor_to_eng2 = {"성장": "Growth", "가치": "Value", "펀더멘털": "Quality", "추세": "Trend", "리스크": "Risk"}
+    try:
+        reasons = explain_stock(code, fdf.reset_index())
+    except Exception as _ex:
+        reasons = {}
+        st.warning(f"선별 근거 조회 오류: {_ex}")
     summary_text = f" — {reasons['summary']}" if reasons.get("summary") else ""
-    st.markdown(
-        f"<div style='padding:12px;background:rgba(33,150,243,0.12);border-radius:8px;"
-        f"border-left:4px solid #2196F3;margin-bottom:8px;color:inherit;'>"
-        f"📌 {reasons['total']}{summary_text}</div>",
-        unsafe_allow_html=True,
-    )
+    if reasons.get("total"):
+        st.markdown(
+            f"<div style='padding:12px;background:rgba(33,150,243,0.12);border-radius:8px;"
+            f"border-left:4px solid #2196F3;margin-bottom:8px;color:inherit;'>"
+            f"📌 {reasons['total']}{summary_text}</div>",
+            unsafe_allow_html=True,
+        )
     for axis, key in [("성장","growth"),("가치","value"),("펀더멘털","quality"),("추세","trend"),("리스크","risk")]:
-        color = AXIS_COLORS[_kor_to_eng[axis]]
+        color = AXIS_COLORS.get(_kor_to_eng2.get(axis, axis), "#888")
+        reason_text = reasons.get(key, "데이터 없음")
         st.markdown(
             f"<div style='border-left:3px solid {color};padding:7px 12px;margin:4px 0;"
             f"background:rgba(128,128,128,0.05);border-radius:0 4px 4px 0;font-size:0.88rem;color:inherit;'>"
-            f"<strong>{axis}</strong> — {reasons[key]}</div>",
+            f"<strong>{axis}</strong> — {reason_text}</div>",
             unsafe_allow_html=True,
         )
 
@@ -661,20 +668,25 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     if row2 is not None and name2:
         st.markdown("---")
         st.markdown(f"**📊 {name2} — 비교 종목 선별 근거**")
-        reasons2 = explain_stock(row2["code"], fdf.reset_index())
+        try:
+            reasons2 = explain_stock(row2["code"], fdf.reset_index())
+        except Exception:
+            reasons2 = {}
         summary2 = f" — {reasons2['summary']}" if reasons2.get("summary") else ""
-        st.markdown(
-            f"<div style='padding:10px;background:rgba(244,67,54,0.10);border-radius:8px;"
-            f"border-left:4px solid #F44336;margin-bottom:8px;color:inherit;'>"
-            f"📌 {reasons2['total']}{summary2}</div>",
-            unsafe_allow_html=True,
-        )
+        if reasons2.get("total"):
+            st.markdown(
+                f"<div style='padding:10px;background:rgba(244,67,54,0.10);border-radius:8px;"
+                f"border-left:4px solid #F44336;margin-bottom:8px;color:inherit;'>"
+                f"📌 {reasons2['total']}{summary2}</div>",
+                unsafe_allow_html=True,
+            )
         for axis2, key2 in [("성장","growth"),("가치","value"),("펀더멘털","quality"),("추세","trend"),("리스크","risk")]:
-            color2 = AXIS_COLORS[_kor_to_eng[axis2]]
+            color2 = AXIS_COLORS.get(_kor_to_eng2.get(axis2, axis2), "#888")
+            reason2_text = reasons2.get(key2, "데이터 없음")
             st.markdown(
                 f"<div style='border-left:3px solid {color2};padding:6px 12px;margin:3px 0;"
                 f"background:rgba(128,128,128,0.04);border-radius:0 4px 4px 0;font-size:0.86rem;color:inherit;'>"
-                f"<strong>{axis2}</strong> — {reasons2[key2]}</div>",
+                f"<strong>{axis2}</strong> — {reason2_text}</div>",
                 unsafe_allow_html=True,
             )
 
