@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _revenue_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """매출 YoY 성장률 (최근 연도 대비 전년도) → 0~25점."""
+    """매출 YoY 성장률 (최근 연도 대비 전년도) — raw %, clipped to (-100, 300)."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
@@ -29,12 +29,11 @@ def _revenue_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
             scores[code] = (recent - year_ago) / abs(year_ago) * 100
         except Exception:
             scores[code] = np.nan
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-100, 300), lower=0, upper=25)
+    return pd.Series(scores).clip(-100, 300)
 
 
 def _operating_profit_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """영업이익 YoY 성장률 → 0~25점."""
+    """영업이익 YoY 성장률 — raw %, clipped to (-100, 300)."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
@@ -49,12 +48,11 @@ def _operating_profit_yoy(financials: dict[str, pd.DataFrame]) -> pd.Series:
             scores[code] = (recent - year_ago) / abs(year_ago) * 100
         except Exception:
             scores[code] = np.nan
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-100, 300), lower=0, upper=25)
+    return pd.Series(scores).clip(-100, 300)
 
 
 def _eps_cagr(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """EPS CAGR (가용 연도 기준) → 0~25점."""
+    """EPS CAGR (가용 연도 기준) — raw %, clipped to (-50, 100)."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
@@ -71,12 +69,11 @@ def _eps_cagr(financials: dict[str, pd.DataFrame]) -> pd.Series:
             scores[code] = cagr * 100
         except Exception:
             scores[code] = np.nan
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-50, 100), lower=0, upper=25)
+    return pd.Series(scores).clip(-50, 100)
 
 
 def _revenue_acceleration(financials: dict[str, pd.DataFrame]) -> pd.Series:
-    """매출 성장 가속도 (연도별 추세 기울기) → 0~25점."""
+    """매출 성장 가속도 (연도별 추세 기울기) — raw ratio, clipped to (-50, 50)."""
     scores: dict[str, float] = {}
     for code, df in financials.items():
         try:
@@ -91,8 +88,7 @@ def _revenue_acceleration(financials: dict[str, pd.DataFrame]) -> pd.Series:
             scores[code] = slope / base * 100
         except Exception:
             scores[code] = np.nan
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-50, 50), lower=0, upper=25)
+    return pd.Series(scores).clip(-50, 50)
 
 
 def score_growth(

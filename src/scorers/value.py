@@ -39,10 +39,10 @@ def score_value(
 def _per_score(df: pd.DataFrame) -> pd.Series:
     """PER 섹터 분위수 (낮을수록 좋음) → 0~30점."""
     if "per" not in df.columns:
-        return pd.Series(15.0, index=df.index)  # 데이터 없으면 중간값
+        return pd.Series(0.0, index=df.index)
     valid = df[df["per"] > 0].copy()
     if valid.empty:
-        return pd.Series(15.0, index=df.index)
+        return pd.Series(0.0, index=df.index)
     # ascending=False: 낮은 PER → 높은 분위수 → 높은 점수
     pct = sector_percentile(valid, "per", ascending=False)
     full = pct.reindex(df.index).fillna(0)  # 데이터 없으면 0점 (허수 없음)
@@ -52,10 +52,10 @@ def _per_score(df: pd.DataFrame) -> pd.Series:
 def _pbr_score(df: pd.DataFrame) -> pd.Series:
     """PBR 섹터 분위수 (낮을수록 좋음) → 0~30점."""
     if "pbr" not in df.columns:
-        return pd.Series(15.0, index=df.index)
+        return pd.Series(0.0, index=df.index)
     valid = df[df["pbr"] > 0].copy()
     if valid.empty:
-        return pd.Series(15.0, index=df.index)
+        return pd.Series(0.0, index=df.index)
     # ascending=False: 낮은 PBR → 높은 분위수 → 높은 점수
     pct = sector_percentile(valid, "pbr", ascending=False)
     full = pct.reindex(df.index).fillna(0)  # 데이터 없으면 0점 (허수 없음)
@@ -82,4 +82,4 @@ def _dividend_score(df: pd.DataFrame) -> pd.Series:
     if "dividend_yield" not in df.columns:
         return pd.Series(0.0, index=df.index)
     dy = pd.to_numeric(df["dividend_yield"], errors="coerce").clip(0, 10)
-    return minmax_scale(dy.fillna(0), lower=0, upper=15).rename(None)
+    return minmax_scale(dy, lower=0, upper=15).fillna(0).rename(None)

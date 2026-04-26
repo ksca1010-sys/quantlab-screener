@@ -150,15 +150,21 @@ def fetch_report_titles(code: str) -> list[dict]:
             return []
         data = resp.json()
         items = data if isinstance(data, list) else data.get("result", [])
-        return [
-            {
+        result = []
+        for item in items[:5]:
+            tp_raw = item.get("targetPrice") or item.get("target_price")
+            try:
+                tp = int(float(str(tp_raw).replace(",", ""))) if tp_raw else None
+            except (ValueError, TypeError):
+                tp = None
+            result.append({
                 "title": item.get("title", ""),
                 "broker": item.get("brokerName", ""),
                 "date": item.get("writeDate", "")[:10],
                 "preview": item.get("previewContent", "")[:120],
-            }
-            for item in items[:5]
-        ]
+                "target_price": tp,
+            })
+        return result
     except Exception as e:
         logger.warning("리포트 목록 조회 실패 [%s]: %s", code, e)
         return []

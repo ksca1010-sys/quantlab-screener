@@ -12,24 +12,27 @@ def aggregate(
     value: pd.Series,
     quality: pd.Series,
     trend: pd.Series,
+    risk: pd.Series,
 ) -> pd.DataFrame:
     """
-    4축 점수를 동일 가중 평균으로 합산.
-    TotalScore = 0.25 * Growth + 0.25 * Value + 0.25 * Quality + 0.25 * Trend
+    5축 점수를 동일 가중 평균으로 합산.
+    TotalScore = 0.20 × (Growth + Value + Quality + Trend + Risk)
     """
     df = universe[["code", "name", "market", "sector", "market_cap"]].copy()
     df = df.set_index("code")
 
-    df["Growth"] = pd.to_numeric(growth.reindex(df.index), errors="coerce").fillna(0).round(2)
-    df["Value"] = pd.to_numeric(value.reindex(df.index), errors="coerce").fillna(0).round(2)
+    df["Growth"]  = pd.to_numeric(growth.reindex(df.index),  errors="coerce").fillna(0).round(2)
+    df["Value"]   = pd.to_numeric(value.reindex(df.index),   errors="coerce").fillna(0).round(2)
     df["Quality"] = pd.to_numeric(quality.reindex(df.index), errors="coerce").fillna(0).round(2)
-    df["Trend"] = pd.to_numeric(trend.reindex(df.index), errors="coerce").fillna(0).round(2)
+    df["Trend"]   = pd.to_numeric(trend.reindex(df.index),   errors="coerce").fillna(0).round(2)
+    df["Risk"]    = pd.to_numeric(risk.reindex(df.index),    errors="coerce").fillna(0).round(2)
 
     df["Total"] = (
-        0.25 * df["Growth"]
-        + 0.25 * df["Value"]
-        + 0.25 * df["Quality"]
-        + 0.25 * df["Trend"]
+        0.20 * df["Growth"]
+        + 0.20 * df["Value"]
+        + 0.20 * df["Quality"]
+        + 0.20 * df["Trend"]
+        + 0.20 * df["Risk"]
     ).round(2)
 
     df = df.sort_values("Total", ascending=False).reset_index()

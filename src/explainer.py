@@ -157,6 +157,44 @@ def trend_reason(code: str, df: pd.DataFrame) -> str:
         )
 
 
+def risk_reason(code: str, df: pd.DataFrame) -> str:
+    if "Risk" not in df.columns:
+        return "리스크 데이터 없음"
+    row = df[df["code"] == code]
+    if row.empty:
+        return "리스크 데이터 없음"
+    score = float(row["Risk"].iloc[0])
+    rank = _pct_rank(score, df["Risk"])
+    s_rank, s_size = _sector_pct_rank(code, df, "Risk")
+    total = len(df)
+    sector_note = f" | 업종 내 {s_rank}위/{s_size}위" if s_size > 0 else ""
+
+    if score >= 75:
+        return (
+            f"✅ 저변동·저베타 안정형"
+            f" — Risk 점수 **{score:.1f}점**, **{rank}위/{total}위**{sector_note}."
+            f" 시장 하락 시 방어력 높음."
+        )
+    elif score >= 50:
+        return (
+            f"🔵 보통 수준의 시장 노출"
+            f" — Risk 점수 **{score:.1f}점**, **{rank}위/{total}위**{sector_note}."
+            f" 변동성·MDD 유니버스 중간 수준."
+        )
+    elif score >= 30:
+        return (
+            f"🟡 다소 높은 변동성 또는 낙폭 기록"
+            f" — Risk 점수 **{score:.1f}점**, **{rank}위/{total}위**{sector_note}."
+            f" 포지션 크기 조절 권장."
+        )
+    else:
+        return (
+            f"🔴 고베타·고변동·MDD 큰 종목"
+            f" — Risk 점수 **{score:.1f}점**, **{rank}위/{total}위**{sector_note}."
+            f" 단기 하락 시 손실 확대 가능."
+        )
+
+
 def total_verdict(code: str, df: pd.DataFrame) -> str:
     row = df[df["code"] == code]
     if row.empty:
@@ -187,8 +225,9 @@ def _make_summary(code: str, df: pd.DataFrame) -> str:
     total = float(row["Total"].iloc[0])
     name = row["name"].iloc[0]
 
-    strengths = [lbl for lbl, val in [("성장", g), ("가치", v), ("펀더멘털", q), ("추세", t)] if val >= 60]
-    weaknesses = [lbl for lbl, val in [("성장", g), ("가치", v), ("펀더멘털", q), ("추세", t)] if val < 35]
+    r = float(row["Risk"].iloc[0]) if "Risk" in row.columns else 0.0
+    strengths  = [lbl for lbl, val in [("성장", g), ("가치", v), ("펀더멘털", q), ("추세", t), ("리스크", r)] if val >= 60]
+    weaknesses = [lbl for lbl, val in [("성장", g), ("가치", v), ("펀더멘털", q), ("추세", t), ("리스크", r)] if val < 35]
 
     summary = f"{name}는 종합 {total:.1f}점"
     if strengths:
@@ -200,12 +239,13 @@ def _make_summary(code: str, df: pd.DataFrame) -> str:
 
 
 def explain_stock(code: str, df: pd.DataFrame) -> dict[str, str]:
-    """종목 한 개의 4축 선별 근거 딕셔너리 반환."""
+    """종목 한 개의 5축 선별 근거 딕셔너리 반환."""
     return {
-        "total": total_verdict(code, df),
-        "growth": growth_reason(code, df),
-        "value": value_reason(code, df),
+        "total":   total_verdict(code, df),
+        "growth":  growth_reason(code, df),
+        "value":   value_reason(code, df),
         "quality": quality_reason(code, df),
-        "trend": trend_reason(code, df),
+        "trend":   trend_reason(code, df),
+        "risk":    risk_reason(code, df),
         "summary": _make_summary(code, df),
     }

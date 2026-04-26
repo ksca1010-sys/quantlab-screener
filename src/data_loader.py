@@ -149,7 +149,23 @@ def get_financial_data(code: str, as_of_date: str) -> pd.DataFrame:
         if not frames:
             logger.warning("[%s] 재무 데이터 없음 (as_of=%s)", code, as_of_date)
             return pd.DataFrame()
-        return pd.concat(frames, ignore_index=True)
+
+        combined = pd.concat(frames, ignore_index=True)
+
+        # 연결재무제표(CFS) 우선, 연도별로 CFS가 존재하면 단독(OFS) 제거.
+        # 지주회사·금융지주 등은 연결과 단독이 크게 다르므로 명시적 우선순위 필수.
+        if "fs_div" in combined.columns:
+            years_with_cfs = set(
+                combined.loc[combined["fs_div"] == "CFS", "bsns_year"].unique()
+            )
+            if years_with_cfs:
+                drop_mask = (
+                    combined["bsns_year"].isin(years_with_cfs)
+                    & (combined["fs_div"] == "OFS")
+                )
+                combined = combined[~drop_mask]
+
+        return combined
 
     except EnvironmentError:
         raise

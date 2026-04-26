@@ -78,13 +78,14 @@ def _compute_peg(market_data: pd.DataFrame, financials: dict[str, pd.DataFrame])
             eps_cagr_pct = ((end_val / start_val) ** (1 / n_years) - 1) * 100
             if eps_cagr_pct <= 0:
                 continue
-            per_row = market_data[market_data["code"] == code]
+            code_str = str(code).zfill(6)
+            per_row = market_data[market_data["code"] == code_str]
             if per_row.empty:
                 continue
             per = float(per_row["per"].iloc[0])
             if pd.isna(per) or per <= 0:
                 continue
-            peg_map[code] = per / eps_cagr_pct
+            peg_map[code_str] = per / eps_cagr_pct
         except Exception:
             continue
 
@@ -135,12 +136,21 @@ def _enrich_from_dart(market_data: pd.DataFrame, financials: dict[str, pd.DataFr
         def safe_div(a, b):
             return (a / b * 100) if (not pd.isna(a) and not pd.isna(b) and b != 0) else float("nan")
 
+        # 자본잠식(equity <= 0): ROE·부채비율 계산 불가 → NaN
+        roe_val = safe_div(net_income, equity) if (not pd.isna(equity) and equity > 0) else float("nan")
+        dr_val  = safe_div(liabilities, equity) if (not pd.isna(equity) and equity > 0) else float("nan")
+        # 무차입(fin_costs == 0): 이자보상배율 무한대 → cap 100
+        if not pd.isna(op_income) and not pd.isna(fin_costs):
+            ic_val = (op_income / fin_costs) if fin_costs > 0 else (100.0 if fin_costs == 0 else float("nan"))
+        else:
+            ic_val = float("nan")
+
         records.append({
-            "code": code,
-            "roe":              safe_div(net_income, equity),
-            "operating_margin": safe_div(op_income,  revenue),
-            "debt_ratio":       safe_div(liabilities, equity),
-            "interest_coverage": (op_income / fin_costs) if (not pd.isna(op_income) and not pd.isna(fin_costs) and fin_costs > 0) else float("nan"),
+            "code": str(code).zfill(6),
+            "roe":              roe_val,
+            "operating_margin": safe_div(op_income, revenue),
+            "debt_ratio":       dr_val,
+            "interest_coverage": ic_val,
         })
 
     if not records:
@@ -188,11 +198,14 @@ def _build_financial_data(universe: pd.DataFrame, as_of_date: str) -> dict[str, 
 def _build_price_data(
     universe: pd.DataFrame, as_of_date: str
 ) -> dict[str, pd.DataFrame]:
-    """FinanceDataReader로 가격 데이터 수집 (1년치)."""
+    """FinanceDataReader로 가격 데이터 수집 (1년치). KOSPI 지수(KS11) 포함."""
     from src.data_loader import get_price_data
 
     start = (pd.Timestamp(as_of_date) - pd.DateOffset(years=1)).strftime("%Y-%m-%d")
     result: dict[str, pd.DataFrame] = {}
+
+    # KOSPI 지수 — Risk 축 베타 계산용
+    result["KS11"] = get_price_data("KS11", start, as_of_date)
 
     for _, row in tqdm(
         universe.iterrows(), total=len(universe), desc="가격 데이터 수집"
@@ -210,6 +223,7 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     from src.scorers.value import score_value
     from src.scorers.quality import score_quality
     from src.scorers.trend import score_trend
+    from src.scorers.risk import score_risk
     from src.aggregator import aggregate, to_csv
 
     logger.info("=== QuantLab Screener 시작 (기준일: %s) ===", as_of_date)
@@ -243,15 +257,16 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
         market_data = _compute_peg(market_data, financials)
 
     # 5. 스코어링
-    logger.info("[5/6] 4축 스코어링...")
-    growth = score_growth(universe, financials)
-    value = score_value(universe, financials, market_data)
+    logger.info("[5/6] 5축 스코어링...")
+    growth  = score_growth(universe, financials)
+    value   = score_value(universe, financials, market_data)
     quality = score_quality(universe, financials, market_data)
-    trend = score_trend(universe, price_data)
+    trend   = score_trend(universe, price_data)
+    risk    = score_risk(universe, price_data)
 
     # 6. 집계 & 저장
     logger.info("[6/6] 집계 및 결과 저장...")
-    result = aggregate(universe, growth, value, quality, trend)
+    result = aggregate(universe, growth, value, quality, trend, risk)
 
     # 섹터 고정값 적용 (config/sector_map.yaml 우선 — pykrx 실패로 덮어씌워지는 것 방지)
     sector_map_path = os.path.join(os.path.dirname(__file__), "..", "config", "sector_map.yaml")
@@ -289,7 +304,7 @@ def print_summary(result: pd.DataFrame) -> None:
     print("\n상위 10개 종목")
     print("-" * 70)
     top10 = result.head(10).reset_index()[
-        ["rank", "name", "code", "market", "sector", "Growth", "Value", "Quality", "Trend", "Total"]
+        ["rank", "name", "code", "market", "sector", "Growth", "Value", "Quality", "Trend", "Risk", "Total"]
     ]
     print(tabulate(top10, headers="keys", tablefmt="rounded_outline", showindex=False))
 
