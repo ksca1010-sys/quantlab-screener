@@ -10,6 +10,7 @@ KOSPI + KOSDAQ 통합 시총 상위 100개를 4축(성장·가치·펀더멘털�
 - 섹터 내 분위수 정규화 필수 (절댓값 비교 금지)
 - 머신러닝/최적화 라이브러리 사용 금지 (pandas만)
 - 웹 프레임워크 추가 금지 (PoC는 CLI 전용)
+- **[헌법] 가상수치·허수 계산 절대 금지**: 데이터 미확보 시 해당 항목은 반드시 NaN 또는 0점 처리. fillna(중간값·임의값) 금지. 스케일링 전 fillna(0) 금지 — 반드시 스케일링 후 fillna(0) 적용하여 결측이 동료 순위에 영향을 주지 않도록 함. 실데이터가 없는 항목은 점수에 기여하지 않는다.
 
 ## Tech Stack
 Python 3.11 + venv / FinanceDataReader / opendart-reader / pykrx / pandas

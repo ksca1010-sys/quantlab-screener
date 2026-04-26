@@ -117,16 +117,27 @@ def score_growth(
     s3 = _eps_cagr(fin)              # 0~25
     s4 = _revenue_acceleration(fin)  # 0~10
 
-    def _scale(s: pd.Series, upper: float) -> pd.Series:
-        return minmax_scale(s, lower=0, upper=upper)
+    # 가중치별 스케일링 — NaN 유지 (스케일링 후 fillna하여 결측이 동료 순위를 왜곡하지 않도록)
+    PARTS = [
+        (minmax_scale(s1.reindex(codes), lower=0, upper=30), 30),
+        (minmax_scale(s2.reindex(codes), lower=0, upper=35), 35),
+        (minmax_scale(s3.reindex(codes), lower=0, upper=25), 25),
+        (minmax_scale(s4.reindex(codes), lower=0, upper=10), 10),
+    ]
+    sub_df = pd.DataFrame(
+        {f"s{i}": s for i, (s, _) in enumerate(PARTS)}, index=codes
+    )
+    weights = [w for _, w in PARTS]
 
-    total = (
-        _scale(s1.reindex(codes).fillna(0), 30)
-        + _scale(s2.reindex(codes).fillna(0), 35)
-        + _scale(s3.reindex(codes).fillna(0), 25)
-        + _scale(s4.reindex(codes).fillna(0), 10)
-    )  # 합산 범위 0~100
+    def _row_total(row: pd.Series) -> float:
+        avail = [(v, w) for v, w in zip(row, weights) if pd.notna(v)]
+        if not avail:
+            return 0.0
+        score_sum = sum(v for v, _ in avail)
+        weight_sum = sum(w for _, w in avail)
+        return score_sum / weight_sum * 100
 
+    total = sub_df.apply(_row_total, axis=1)
     result = clip_score(total)
     result.index = codes
     return result

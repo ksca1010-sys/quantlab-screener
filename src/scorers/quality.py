@@ -36,33 +36,33 @@ def score_quality(
 
 
 def _roe_score(df: pd.DataFrame) -> pd.Series:
-    """ROE (%) 높을수록 좋음 → 0~30점."""
+    """ROE (%) 높을수록 좋음 → 0~30점. NaN은 스케일링 후 0점 (허수 금지)."""
     if "roe" not in df.columns:
         return pd.Series(0.0, index=df.index)
     roe = pd.to_numeric(df["roe"], errors="coerce").clip(-50, 100)
-    return minmax_scale(roe.fillna(0), lower=0, upper=30).rename(None)
+    return minmax_scale(roe, lower=0, upper=30).fillna(0).rename(None)
 
 
 def _op_margin_score(df: pd.DataFrame) -> pd.Series:
-    """영업이익률 (%) 높을수록 좋음 → 0~25점."""
+    """영업이익률 (%) 높을수록 좋음 → 0~25점. NaN은 스케일링 후 0점."""
     if "operating_margin" not in df.columns:
         return pd.Series(0.0, index=df.index)
     margin = pd.to_numeric(df["operating_margin"], errors="coerce").clip(-50, 80)
-    return minmax_scale(margin.fillna(0), lower=0, upper=25).rename(None)
+    return minmax_scale(margin, lower=0, upper=25).fillna(0).rename(None)
 
 
 def _debt_ratio_score(df: pd.DataFrame) -> pd.Series:
-    """부채비율 역수: 낮을수록 좋음 → 0~25점."""
+    """부채비율 역수: 낮을수록 좋음 → 0~25점. NaN은 0점 (허수 가정 금지)."""
     if "debt_ratio" not in df.columns:
         return pd.Series(0.0, index=df.index)
     ratio = pd.to_numeric(df["debt_ratio"], errors="coerce").clip(0, 1000)
-    inv = 1 / (1 + ratio.fillna(500))
-    return minmax_scale(inv, lower=0, upper=25).rename(None)
+    inv = 1 / (1 + ratio)  # NaN 유지
+    return minmax_scale(inv, lower=0, upper=25).fillna(0).rename(None)
 
 
 def _interest_coverage_score(df: pd.DataFrame) -> pd.Series:
-    """이자보상배율 높을수록 좋음 → 0~20점."""
+    """이자보상배율 높을수록 좋음 → 0~20점. NaN은 0점."""
     if "interest_coverage" not in df.columns:
         return pd.Series(0.0, index=df.index)
     ic = pd.to_numeric(df["interest_coverage"], errors="coerce").clip(-10, 100)
-    return minmax_scale(ic.fillna(0), lower=0, upper=20).rename(None)
+    return minmax_scale(ic, lower=0, upper=20).fillna(0).rename(None)
