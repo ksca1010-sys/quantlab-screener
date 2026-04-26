@@ -91,6 +91,12 @@ def _inject_css() -> None:
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
+/* Streamlit 기본 UI 제거 */
+#MainMenu { visibility: hidden; }
+[data-testid="stToolbar"] { display: none !important; }
+header[data-testid="stHeader"] { display: none !important; }
+footer { visibility: hidden; }
+
 :root {
   --bg-card: rgba(255,255,255,0.06);
   --bg-inset: rgba(0,0,0,0.08);
@@ -562,10 +568,10 @@ def main() -> None:
     st.markdown(
         f"""<div style="display:flex;align-items:center;justify-content:space-between;
           padding:14px 0 10px;border-bottom:1px solid rgba(128,128,128,0.18);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;gap:10px;">
-            <span style="font-size:1.7rem;font-weight:800;letter-spacing:-0.02em;">
+          <div style="display:flex;align-items:baseline;gap:12px;">
+            <span style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;">
               📊 QuantLab Screener</span>
-            <span style="font-size:0.82rem;color:#888;">
+            <span style="font-size:0.88rem;color:#888;">
               KOSPI·KOSDAQ 시총 상위 100개 · 4축 스코어링</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
