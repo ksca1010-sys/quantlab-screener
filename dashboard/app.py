@@ -477,9 +477,9 @@ def main() -> None:
     # ── 사이드바 ──────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(
-            "<div style='padding:12px 0 6px;'>"
-            "<div style='font-size:1.15rem;font-weight:800;letter-spacing:-0.01em;'>📊 QuantLab</div>"
-            "<div style='font-size:0.72rem;color:#888;margin-top:3px;'>KOSPI·KOSDAQ 4축 스코어링</div>"
+            "<div style='padding:16px 0 8px;'>"
+            "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>📊 QuantLab Screener</div>"
+            "<div style='font-size:0.8rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 4축 스코어링</div>"
             "</div>",
             unsafe_allow_html=True,
         )
