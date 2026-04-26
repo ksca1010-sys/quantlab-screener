@@ -94,18 +94,86 @@ def _inject_css() -> None:
 :root {
   --bg-card: rgba(255,255,255,0.06);
   --bg-inset: rgba(0,0,0,0.08);
-  --border-subtle: rgba(128,128,128,0.2);
+  --border-subtle: rgba(128,128,128,0.18);
   --text-muted: rgba(128,128,128,0.8);
   --track-bg: rgba(128,128,128,0.15);
+  --accent: #2196F3;
 }
 
-.stApp, .stMarkdown, [data-testid="stMetricLabel"] {
+/* 전체 폰트 */
+.stApp, .stMarkdown, [data-testid="stMetricLabel"],
+[data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
   font-family: 'Noto Sans KR', sans-serif !important;
 }
-
 .stMarkdown p, .stMarkdown li {
-  line-height: 1.45;
+  line-height: 1.5;
   word-break: keep-all;
+}
+
+/* 탭 바 */
+.stTabs [data-baseweb="tab-list"] {
+  gap: 2px;
+  background: rgba(128,128,128,0.08);
+  padding: 4px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+}
+.stTabs [data-baseweb="tab"] {
+  border-radius: 8px;
+  padding: 5px 18px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: background 0.15s;
+}
+.stTabs [aria-selected="true"] {
+  background: rgba(33,150,243,0.18) !important;
+  color: #64B5F6 !important;
+  font-weight: 700;
+}
+
+/* 메트릭 카드 */
+[data-testid="stMetric"] {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 14px !important;
+}
+
+/* 사이드바 */
+section[data-testid="stSidebar"] {
+  background: rgba(10,10,20,0.3) !important;
+  border-right: 1px solid var(--border-subtle);
+}
+section[data-testid="stSidebar"] .stSelectbox label,
+section[data-testid="stSidebar"] .stRadio label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 버튼 */
+.stButton > button {
+  border-radius: 8px !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  transition: opacity 0.15s !important;
+}
+.stButton > button:hover { opacity: 0.85; }
+
+/* 데이터프레임 헤더 */
+[data-testid="stDataFrame"] th {
+  background: rgba(33,150,243,0.08) !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+}
+
+/* expander */
+[data-testid="stExpander"] {
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -402,20 +470,25 @@ def main() -> None:
 
     # ── 사이드바 ──────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.title("📊 QuantLab Screener")
-        st.caption("KOSPI + KOSDAQ 시총 상위 100개 4축 스코어링")
-        st.caption(f"📅 데이터 업데이트: {_last_updated()}")
+        st.markdown(
+            "<div style='padding:12px 0 6px;'>"
+            "<div style='font-size:1.15rem;font-weight:800;letter-spacing:-0.01em;'>📊 QuantLab</div>"
+            "<div style='font-size:0.72rem;color:#888;margin-top:3px;'>KOSPI·KOSDAQ 4축 스코어링</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
         st.divider()
+        st.markdown(
+            "<div style='font-size:0.72rem;color:#888;margin-bottom:10px;'>"
+            f"📅 {_last_updated()}</div>",
+            unsafe_allow_html=True,
+        )
 
-        st.subheader("필터")
+        st.markdown("**필터**")
 
         market_order = ["KOSPI", "KOSDAQ", "KOSDAQ GLOBAL"]
         avail_markets = [m for m in market_order if m in df["market"].values]
-        sel_market = st.radio(
-            "시장",
-            ["전체"] + avail_markets,
-            horizontal=True,
-        )
+        sel_market = st.selectbox("시장", ["전체"] + avail_markets)
 
         SECTOR_ICONS = {
             "전기·전자": "💡", "의약품": "💊", "기계": "⚙️",
@@ -483,24 +556,30 @@ def main() -> None:
     if sel_signal != "전체" and "entry_signal" in fdf.columns:
         fdf = fdf[fdf["entry_signal"] == sel_signal]
 
-    # ── 헤더 요약 ─────────────────────────────────────────────────────────────
-    st.title("QuantLab Screener Dashboard")
-
-    hc1, hc2, hc3, hc4, hc5 = st.columns(5)
-    hc1.metric("종목 수", f"{len(fdf)}개")
-    hc2.metric("평균 종합점수", f"{fdf['Total'].mean():.1f}" if not fdf.empty else "—")
-    hc3.metric("평균 성장점수", f"{fdf['Growth'].mean():.1f}" if not fdf.empty else "—")
-    hc4.metric("평균 추세점수", f"{fdf['Trend'].mean():.1f}" if not fdf.empty else "—")
-    hc5.metric("KOSPI/KOSDAQ",
-               f"{(fdf['market']=='KOSPI').sum()}/{(fdf['market']=='KOSDAQ').sum()}")
-
-    # CustMgmt: Data staleness banner
-    st.caption(
-        f"📋 데이터 기준: {_last_updated()} | "
-        "공시 기준: 분석 시점 t-45일 이전 게재 공시만 반영 | "
-        "Value·Quality 점수 일부 중립값 적용 (pykrx API 제한)"
+    # ── 헤더 ────────────────────────────────────────────────────────────────────
+    kospi_cnt = int((df["market"] == "KOSPI").sum())
+    kosdaq_cnt = int((df["market"] == "KOSDAQ").sum())
+    st.markdown(
+        f"""<div style="display:flex;align-items:center;justify-content:space-between;
+          padding:14px 0 10px;border-bottom:1px solid rgba(128,128,128,0.18);margin-bottom:14px;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <span style="font-size:1.7rem;font-weight:800;letter-spacing:-0.02em;">
+              📊 QuantLab Screener</span>
+            <span style="font-size:0.82rem;color:#888;">
+              KOSPI·KOSDAQ 시총 상위 100개 · 4축 스코어링</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span style="background:rgba(33,150,243,0.14);border:1px solid rgba(33,150,243,0.28);
+              padding:3px 11px;border-radius:20px;font-size:0.75rem;color:#64B5F6;font-weight:600;">
+              {len(fdf)}개 종목</span>
+            <span style="background:rgba(128,128,128,0.08);border:1px solid rgba(128,128,128,0.18);
+              padding:3px 11px;border-radius:20px;font-size:0.75rem;color:#aaa;">
+              KOSPI {kospi_cnt} · KOSDAQ {kosdaq_cnt}</span>
+            <span style="font-size:0.75rem;color:#666;">📅 {_last_updated()}</span>
+          </div>
+        </div>""",
+        unsafe_allow_html=True,
     )
-    st.divider()
 
     is_empty = fdf.empty
     # 전문가 패널 #3: 전체 유니버스 기준 분위 임계값 계산
@@ -509,12 +588,25 @@ def main() -> None:
 
     # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
     with tab1:
-        st.subheader(f"종목 랭킹 ({len(fdf)}개)")
-
         t1, t2, t3 = grade_thresholds
-        st.caption(
-            f"등급(유니버스 분위): 최우수(상위20% ≥{t1:.1f}) · 우수(≥{t2:.1f}) · 보통(≥{t3:.1f}) · 관찰 "
-            "— 정량 스크리닝 결과, 투자 추천 아님"
+        st.markdown(
+            f"<div style='display:flex;align-items:center;justify-content:space-between;"
+            f"margin-bottom:8px;flex-wrap:wrap;gap:8px;'>"
+            f"<span style='font-size:1.05rem;font-weight:700;'>종목 랭킹 "
+            f"<span style='color:#64B5F6;'>{len(fdf)}개</span></span>"
+            f"<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;'>"
+            f"<span style='font-size:0.72rem;color:#888;'>등급 기준</span>"
+            f"<span style='background:#00C853;color:#003300;padding:2px 9px;border-radius:12px;"
+            f"font-size:0.72rem;font-weight:700;'>최우수 ≥{t1:.0f}</span>"
+            f"<span style='background:#1E88E5;color:#fff;padding:2px 9px;border-radius:12px;"
+            f"font-size:0.72rem;font-weight:700;'>우수 ≥{t2:.0f}</span>"
+            f"<span style='background:#FB8C00;color:#fff;padding:2px 9px;border-radius:12px;"
+            f"font-size:0.72rem;font-weight:700;'>보통 ≥{t3:.0f}</span>"
+            f"<span style='background:#E53935;color:#fff;padding:2px 9px;border-radius:12px;"
+            f"font-size:0.72rem;font-weight:700;'>관찰</span>"
+            f"<span style='font-size:0.7rem;color:#666;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
+            f"</div></div>",
+            unsafe_allow_html=True,
         )
 
         if is_empty:
