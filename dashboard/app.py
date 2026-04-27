@@ -17,7 +17,7 @@ from src.analyst import fetch_consensus, fetch_current_price, fetch_report_title
 
 st.set_page_config(
     page_title="QuantLab Screener",
-    page_icon="📊",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -492,7 +492,7 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
     return fig
 
 
-@st.dialog("📊 종목 분석", width="large")
+@st.dialog("종목 분석", width="large")
 def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
                        grade_thresholds: tuple) -> None:
     """Tab1 행 클릭 시 모달 팝업으로 5축 종목 분석 표시."""
@@ -602,7 +602,7 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     st.markdown("---")
 
     # 유니버스 포지셔닝 바 차트
-    st.markdown("**📊 유니버스 포지셔닝 — 5축 점수 비교**")
+    st.markdown("**유니버스 포지셔닝 — 5축 점수 비교**")
     try:
         st.plotly_chart(_score_comparison_chart(row, df_univ), use_container_width=True)
     except Exception:
@@ -667,7 +667,7 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     # 비교 종목 근거
     if row2 is not None and name2:
         st.markdown("---")
-        st.markdown(f"**📊 {name2} — 비교 종목 선별 근거**")
+        st.markdown(f"**{name2} — 비교 종목 선별 근거**")
         try:
             reasons2 = explain_stock(row2["code"], fdf.reset_index())
         except Exception:
@@ -791,13 +791,13 @@ def main() -> None:
 
     # UX: Full-page onboarding when no data
     if df.empty:
-        st.title("📊 QuantLab Screener")
+        st.title("QuantLab Screener")
         st.markdown("### 데이터가 아직 없습니다")
         st.info("터미널에서 아래 명령어를 실행해 스코어링 데이터를 생성하세요.")
         st.code("source .venv/bin/activate\npython -m src.main", language="bash")
         st.markdown("생성 완료 후 사이드바의 **데이터 새로고침** 버튼을 클릭하세요.")
         with st.sidebar:
-            st.title("📊 QuantLab Screener")
+            st.title("QuantLab Screener")
             if st.button("데이터 새로고침"):
                 st.cache_data.clear()
                 st.rerun()
@@ -807,7 +807,7 @@ def main() -> None:
     with st.sidebar:
         st.markdown(
             "<div style='padding:16px 0 8px;'>"
-            "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>📊 QuantLab Screener</div>"
+            "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>QuantLab Screener</div>"
             "<div style='font-size:0.8rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 5축 스코어링</div>"
             "</div>",
             unsafe_allow_html=True,
@@ -912,7 +912,7 @@ def main() -> None:
           padding:14px 0 10px;border-bottom:1px solid rgba(128,128,128,0.18);margin-bottom:14px;">
           <div style="display:flex;align-items:baseline;gap:12px;">
             <span style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;">
-              📊 QuantLab Screener</span>
+              QuantLab Screener</span>
             <span style="font-size:0.88rem;color:#888;">
               KOSPI·KOSDAQ 시총 상위 100개 · 5축 스코어링</span>
           </div>
@@ -930,7 +930,7 @@ def main() -> None:
     )
 
     is_empty = fdf.empty
-    tab1, tab3, tab4, tab5 = st.tabs(["📋 종목 랭킹", "📈 분포 분석", "💬 시장 코멘트", "📊 IC 검증"])
+    tab1, tab3, tab4, tab5 = st.tabs(["📋 종목 랭킹", "📈 분포 분석", "💬 시장 코멘트", "🔬 IC 검증"])
 
     # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
     with tab1:
@@ -1084,7 +1084,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     "화학": "🧪", "증권": "📈", "건설업": "🏗️",
                     "운수·창고업": "✈️", "철강·금속": "🔩", "보험업": "🛡️",
                     "화장품·의류": "💄", "통신업": "📡", "전기·가스업": "⚡",
-                    "담배": "🌿", "음식료품": "🍱", "기타": "📊",
+                    "담배": "🌿", "음식료품": "🍱", "기타": "",
                 }
                 sector_top = (
                     fdf.reset_index()
@@ -1097,7 +1097,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 for i, (_, srow) in enumerate(sector_top.iterrows()):
                     grade = investment_grade(srow["Total"], grade_thresholds)
                     cfg = GRADE_CONFIG[grade]
-                    icon = SECTOR_ICONS.get(srow["sector"], "📊")
+                    icon = SECTOR_ICONS.get(srow["sector"], "")
                     with cols[i % 4]:
                         st.markdown(
                             f'<div style="border:1px solid {cfg["border"]};border-left:4px solid {cfg["bg"]};'
@@ -1343,7 +1343,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
 
     # ── Tab 5: IC 검증 ────────────────────────────────────────────────────────
     with tab5:
-        st.subheader("📊 IC/IR 백테스트 — 점수의 예측력 검증")
+        st.subheader("IC/IR 백테스트 — 점수의 예측력 검증")
         st.markdown(
             "**이 탭은 스크리너 점수가 실제로 미래 수익률을 예측하는지 검증합니다.**\n\n"
             "- **IC (정보계수)**: 점수 순위와 실제 주가 수익률 순위의 일치도 (−1 ~ +1)\n"
