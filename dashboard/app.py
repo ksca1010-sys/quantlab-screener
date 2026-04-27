@@ -19,7 +19,7 @@ st.set_page_config(
     page_title="QuantLab Screener",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 CSV_PATH = Path(__file__).parent.parent / "output" / "stocks_top100.csv"
@@ -55,9 +55,9 @@ GRADE_CONFIG = {
 PLOTLY_BASE = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Noto Sans KR, sans-serif", size=12),
-    margin=dict(l=40, r=20, t=50, b=40),
-    height=350,
+    font=dict(family="Noto Sans KR, sans-serif", size=11),
+    margin=dict(l=36, r=12, t=36, b=28),
+    height=300,
 )
 
 BENCHMARK_PLATFORMS = [
@@ -97,7 +97,7 @@ def _inject_css() -> None:
 /* Streamlit 기본 UI 제거 */
 #MainMenu { visibility: hidden; }
 [data-testid="stToolbar"] { display: none !important; }
-header[data-testid="stHeader"] { display: none !important; }
+[data-testid="stHeader"] { display: none !important; height: 0 !important; min-height: 0 !important; }
 footer { visibility: hidden; }
 
 :root {
@@ -117,6 +117,7 @@ footer { visibility: hidden; }
 .stMarkdown p, .stMarkdown li {
   line-height: 1.5;
   word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* 탭 바 */
@@ -126,7 +127,12 @@ footer { visibility: hidden; }
   padding: 4px 6px;
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
 .stTabs [data-baseweb="tab"] {
   border-radius: 8px;
   padding: 5px 18px;
@@ -134,6 +140,11 @@ footer { visibility: hidden; }
   font-weight: 500;
   color: var(--text-muted);
   transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 .stTabs [aria-selected="true"] {
   background: rgba(33,150,243,0.18) !important;
@@ -156,19 +167,20 @@ section[data-testid="stSidebar"] {
 }
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stRadio label {
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-/* 버튼 */
+/* 버튼 — 최소 터치 44px */
 .stButton > button {
   border-radius: 8px !important;
-  font-size: 0.85rem !important;
+  font-size: 0.875rem !important;
   font-weight: 500 !important;
   transition: opacity 0.15s !important;
+  min-height: 44px !important;
 }
 .stButton > button:hover { opacity: 0.85; }
 
@@ -176,7 +188,7 @@ section[data-testid="stSidebar"] .stRadio label {
 [data-testid="stDataFrame"] th {
   background: rgba(33,150,243,0.08) !important;
   font-weight: 700 !important;
-  font-size: 0.82rem !important;
+  font-size: 0.875rem !important;
 }
 
 /* expander */
@@ -184,6 +196,195 @@ section[data-testid="stSidebar"] .stRadio label {
   border: 1px solid var(--border-subtle) !important;
   border-radius: 8px !important;
 }
+
+/* 전역 상단 여백 축소 */
+.block-container,
+[data-testid="stMainBlockContainer"] {
+  padding-top: 1.5rem !important;
+  max-width: 100% !important;
+}
+
+/* ── 모바일 카드 레이아웃 ─────────────────────────────────────────── */
+.ql-card-list  { display: none; }
+
+@media (max-width: 768px) {
+  .ql-card-list { display: block; }
+
+  /* 본문 패딩 최소화 */
+  .block-container,
+  [data-testid="stMainBlockContainer"] {
+    max-width: 100% !important;
+    padding-top: 0.75rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* 사이드바 너비 */
+  section[data-testid="stSidebar"] {
+    width: 85vw !important;
+    min-width: 0 !important;
+  }
+
+  /* 탭 패딩 */
+  .stTabs [data-baseweb="tab"] {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* 사이드바 라벨 */
+  section[data-testid="stSidebar"] .stSelectbox label,
+  section[data-testid="stSidebar"] .stRadio label {
+    font-size: 0.875rem;
+  }
+
+  /* 메트릭 패딩 */
+  [data-testid="stMetric"] {
+    padding: 8px 10px !important;
+  }
+
+  /* 한국어 줄바꿈 허용 */
+  .stMarkdown p, .stMarkdown li {
+    word-break: break-word;
+  }
+
+  /* 섹터 강도 블록 숨김 (필터 우선 노출) */
+  .sidebar-sector-strength { display: none !important; }
+
+  /* 사이드바 브랜드 타이틀 숨김 (메인 헤더 중복) */
+  .sidebar-brand { display: none !important; }
+}
+
+@media (max-width: 480px) {
+  /* 다이얼로그 모바일 전체화면 */
+  div[data-testid="stDialog"] > div {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: 0.75rem !important;
+  }
+  div[data-testid="stDialog"] {
+    padding: 0 !important;
+  }
+
+  /* 컬럼 수직 스택 (Tab3 차트, Dialog 내부 등) */
+  [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
+  [data-testid="stHorizontalBlock"] > div[class*="stColumn"] {
+    width: 100% !important;
+    flex: none !important;
+    min-width: 100% !important;
+  }
+
+  /* 탭 최소 크기 */
+  .stTabs [data-baseweb="tab"] {
+    padding: 5px 6px;
+    font-size: 0.75rem;
+  }
+
+  /* 극소 화면 줄바꿈 */
+  .stMarkdown p, .stMarkdown li {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* 종목명 tertiary 버튼 터치 타겟 */
+  div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
+    min-height: 44px !important;
+    padding: 10px 4px !important;
+    font-size: 0.875rem !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+}
+
+/* 모바일 카드 스타일 */
+.ql-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ql-card-rank {
+  font-size: 0.75rem;
+  color: #666;
+  min-width: 22px;
+  text-align: center;
+}
+.ql-card-body { flex: 1; min-width: 0; }
+.ql-card-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64B5F6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ql-card-sub {
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ql-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.ql-card-score {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+.ql-grade-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  padding: 3px 9px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.ql-bull-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #E65100;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* 섹터 강도 툴팁 */
+.ql-sector-row { position: relative; cursor: default; }
+.ql-sector-tooltip {
+  display: none;
+  position: absolute;
+  left: 0; top: 100%;
+  z-index: 9999;
+  background: #1a2236;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 200px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.ql-sector-row:hover .ql-sector-tooltip { display: block; }
+.ql-tt-row { display: flex; justify-content: space-between; gap: 16px; padding: 2px 0; }
+.ql-tt-name { color: #ccc; }
+.ql-tt-ret { font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -235,8 +436,8 @@ def grade_badge_html(score: float, thresholds: tuple[float, float, float] = (60,
     cfg = GRADE_CONFIG[label]
     return (
         f'<span style="background:{cfg["bg"]};color:{cfg["text"]};'
-        f'border:1px solid {cfg["border"]};padding:3px 12px;border-radius:12px;'
-        f'font-size:0.82rem;font-weight:700;letter-spacing:0.04em;">{label}</span>'
+        f'border:1px solid {cfg["border"]};padding:4px 12px;border-radius:12px;'
+        f'font-size:0.875rem;font-weight:700;letter-spacing:0.04em;">{label}</span>'
     )
 
 
@@ -294,11 +495,11 @@ def radar_chart(
             bgcolor="rgba(0,0,0,0)",
             radialaxis=dict(
                 visible=True, range=[0, 100],
-                tickfont=dict(size=9, color="rgba(150,150,150,0.7)"),
+                tickfont=dict(size=8, color="rgba(150,150,150,0.7)"),
                 gridcolor="rgba(150,150,150,0.15)",
             ),
             angularaxis=dict(
-                tickfont=dict(size=11),
+                tickfont=dict(size=9),
                 gridcolor="rgba(150,150,150,0.2)",
             ),
         ),
@@ -306,8 +507,8 @@ def radar_chart(
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Noto Sans KR, sans-serif"),
         showlegend=row2 is not None,
-        margin=dict(l=30, r=30, t=40, b=30),
-        height=340,
+        margin=dict(l=10, r=10, t=30, b=10),
+        height=280,
     )
     return fig
 
@@ -318,8 +519,8 @@ def score_bar(value: float, color: str, max_val: float = 100) -> str:
     return (
         f'<div role="progressbar" aria-valuenow="{value:.0f}" '
         f'aria-valuemin="0" aria-valuemax="{max_val:.0f}" aria-label="점수 {value:.0f}점" '
-        f'style="background:var(--track-bg,#e0e0e0);border-radius:6px;height:10px;width:100%;overflow:hidden;">'
-        f'<div style="background:{color};height:10px;border-radius:6px;'
+        f'style="background:var(--track-bg,#e0e0e0);border-radius:6px;height:14px;width:100%;overflow:hidden;">'
+        f'<div style="background:{color};height:14px;border-radius:6px;'
         f'width:{pct:.0f}%;transition:width 0.4s ease;'
         f'box-shadow:0 0 8px {color}55;"></div>'
         f'</div>'
@@ -399,32 +600,35 @@ def _get_price_history(code: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _compute_sector_strength(sector_codes_frozen: tuple) -> dict:
+def _compute_sector_strength(sector_nc_frozen: tuple) -> dict:
     """섹터별 최근 5일(1주) 수익률 계산 → 중앙값 기준 bull/bear 자동 분류.
     TTL=600초(10분)로 장중 변화 반영.
-    sector_codes_frozen: ((섹터명, (코드1, 코드2, ...)), ...) 해시 가능 튜플.
+    sector_nc_frozen: ((섹터명, ((name1,code1), ...)), ...) 해시 가능 튜플.
     """
     from src.data_loader import get_price_data
     end   = pd.Timestamp.today().strftime("%Y-%m-%d")
     start = (pd.Timestamp.today() - pd.DateOffset(days=20)).strftime("%Y-%m-%d")
 
     sector_returns: dict[str, float] = {}
-    for sector, codes in sector_codes_frozen:
-        rets = []
-        for code in codes[:2]:  # 섹터당 최대 2종목 샘플링
+    sector_top: dict[str, list] = {}
+    for sector, name_code_pairs in sector_nc_frozen:
+        stock_rets: list[tuple[str, float]] = []
+        for name, code in name_code_pairs:
             try:
                 pdata = get_price_data(code, start, end)
                 if pdata.empty or "Close" not in pdata.columns or len(pdata) < 5:
                     continue
                 ret = (pdata["Close"].iloc[-1] / pdata["Close"].iloc[-5] - 1) * 100
-                rets.append(float(ret))
+                stock_rets.append((name, round(float(ret), 2)))
             except Exception:
                 continue
-        if rets:
-            sector_returns[sector] = round(float(pd.Series(rets).median()), 2)
+        if stock_rets:
+            vals = [r for _, r in stock_rets]
+            sector_returns[sector] = round(float(pd.Series(vals).median()), 2)
+            sector_top[sector] = sorted(stock_rets, key=lambda x: x[1], reverse=True)[:5]
 
     if not sector_returns:
-        return {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0}
+        return {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0, "sector_top": {}}
 
     median_ret = float(pd.Series(list(sector_returns.values())).median())
     bull_sectors = [s for s, r in sector_returns.items() if r > median_ret]
@@ -433,6 +637,7 @@ def _compute_sector_strength(sector_codes_frozen: tuple) -> dict:
         "sector_returns": sector_returns,
         "bull_sectors": bull_sectors,
         "median_return": round(median_ret, 2),
+        "sector_top": sector_top,
     }
 
 
@@ -471,11 +676,11 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
         ), row=1, col=1)
 
     fig.add_hline(y=w52_high, line_dash="dash", line_color="rgba(0,200,83,0.55)",
-                  annotation_text=f"52주 고점 {w52_high:,.0f}",
-                  annotation_position="top right", row=1, col=1)
+                  annotation_text=f"52H {w52_high:,.0f}",
+                  annotation_position="top left", row=1, col=1)
     fig.add_hline(y=w52_low, line_dash="dash", line_color="rgba(229,57,53,0.55)",
-                  annotation_text=f"52주 저점 {w52_low:,.0f}",
-                  annotation_position="bottom right", row=1, col=1)
+                  annotation_text=f"52L {w52_low:,.0f}",
+                  annotation_position="bottom left", row=1, col=1)
 
     if has_vol:
         closes = df["Close"].values
@@ -488,14 +693,14 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
         ), row=2, col=1)
 
     fig.update_layout(
-        title=dict(text=f"<b>{name}</b> — 1년 주가 (MA20·60·120)", font=dict(size=13)),
+        title=dict(text=f"<b>{name}</b> — 1년 주가 (MA20·60·120)", font=dict(size=12)),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Noto Sans KR, sans-serif", size=11),
-        margin=dict(l=55, r=20, t=50, b=20), height=420,
+        font=dict(family="Noto Sans KR, sans-serif", size=10),
+        margin=dict(l=52, r=8, t=38, b=14), height=360,
         showlegend=True,
-        legend=dict(orientation="h", y=1.10, x=0, font=dict(size=10)),
+        legend=dict(orientation="h", y=1.06, x=0, font=dict(size=9)),
         xaxis=dict(gridcolor="rgba(128,128,128,0.1)", rangeslider=dict(visible=False)),
-        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", tickformat=",.0f", title="주가 (원)"),
+        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", tickformat=",.0f", title="원"),
     )
     if has_vol:
         fig.update_xaxes(gridcolor="rgba(128,128,128,0.1)", row=2, col=1)
@@ -522,10 +727,10 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
     ))
     base = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
     fig.update_layout(
-        **base, barmode="group", height=300,
+        **base, barmode="group", height=260,
         title="5축 점수 vs 유니버스 평균",
-        yaxis=dict(range=[0, 115], gridcolor="rgba(128,128,128,0.1)"),
-        legend=dict(orientation="h", y=1.12, font=dict(size=10)),
+        yaxis=dict(range=[0, 120], gridcolor="rgba(128,128,128,0.1)"),
+        legend=dict(orientation="h", y=1.08, font=dict(size=9)),
     )
     return fig
 
@@ -582,10 +787,12 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
         _sec_badge = ""
 
     st.markdown(
-        f"<div style='display:flex;align-items:baseline;gap:10px;margin:6px 0 10px;flex-wrap:wrap;'>"
-        f"<span style='font-size:1.5rem;font-weight:800;'>{name}</span>"
-        f"<span style='color:#888;font-size:0.9rem;'>{code} · 유니버스 {rank_val}위</span>"
-        f"{_sec_badge}"
+        f"<div style='display:flex;flex-direction:column;gap:4px;margin:6px 0 10px;'>"
+        f"<div style='display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;'>"
+        f"<span style='font-size:1.4rem;font-weight:800;'>{name}</span>"
+        f"<span style='color:#888;font-size:0.88rem;'>{code} · 유니버스 {rank_val}위</span>"
+        f"</div>"
+        f"<div>{_sec_badge}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -613,40 +820,45 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
 
     # 레이더 + 5축 점수
     compare_options = ["없음"] + [o for o in options if f"({code})" not in o]
-    sel_compare = st.selectbox("비교 종목 선택 (선택사항)", compare_options, key="dlg_compare")
+    st.caption("비교 종목 (선택사항)")
+    sel_compare = st.selectbox("비교 종목 선택", compare_options, key="dlg_compare",
+                               label_visibility="collapsed")
     row2 = name2 = None
     if sel_compare != "없음":
         cmp_idx = options.index(sel_compare)
         row2 = fdf.reset_index().iloc[cmp_idx]
         name2 = row2["name"]
 
-    col_radar, col_scores = st.columns([1, 1])
-    with col_radar:
-        st.plotly_chart(radar_chart(row, name, row2, name2), use_container_width=True)
-    with col_scores:
-        st.markdown(f"#### {name} 5축 점수")
-        _kor_to_eng = {"성장": "Growth", "가치": "Value", "펀더멘털": "Quality", "추세": "Trend", "리스크": "Risk"}
-        for axis in AXES:
-            val = float(row[axis])
-            st.markdown(
-                f"**{AXIS_LABELS[axis]}** &nbsp;&nbsp; {color_score(val)} **{val:.1f}점**"
-                f'  <span title="{AXIS_TOOLTIPS[axis]}" style="cursor:help;color:#999;font-size:0.85em">ℹ️</span>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(score_bar(val, AXIS_COLORS[axis]), unsafe_allow_html=True)
+    # 레이더 차트 — 풀 너비 (모바일 @media 컬럼 스택 적용)
+    st.plotly_chart(radar_chart(row, name, row2, name2), use_container_width=True)
+
+    # 5축 점수 — 레이더 아래 전체 너비
+    st.markdown(f"#### {name} 5축 점수")
+    for axis in AXES:
+        val = float(row[axis])
         st.markdown(
-            f"<div style='margin-top:10px;padding:10px;background:rgba(128,128,128,0.12);"
-            f"border-radius:8px;text-align:center'>"
-            f"<span style='font-size:1.3em;font-weight:700;color:#1f77b4'>"
-            f"종합 {total:.1f}점 / 100점</span></div>",
+            f"**{AXIS_LABELS[axis]}** &nbsp;&nbsp; {color_score(val)} **{val:.1f}점**"
+            f'  <span title="{AXIS_TOOLTIPS[axis]}" style="cursor:help;color:#999;'
+            f'font-size:0.85em;white-space:nowrap;">ℹ️</span>',
             unsafe_allow_html=True,
         )
+        st.markdown(score_bar(val, AXIS_COLORS[axis]), unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='margin-top:10px;padding:10px;background:rgba(128,128,128,0.12);"
+        f"border-radius:8px;text-align:center'>"
+        f"<span style='font-size:1.3em;font-weight:700;color:#1f77b4'>"
+        f"종합 {total:.1f}점 / 100점</span></div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
     # 진입 분석
     st.markdown("**📡 진입 분석**")
-    ic1, ic2, ic3, ic4 = st.columns(4)
+    _ic_r1 = st.columns(2)
+    _ic_r2 = st.columns(2)
+    ic1, ic2 = _ic_r1[0], _ic_r1[1]
+    ic3, ic4 = _ic_r2[0], _ic_r2[1]
     row_dict = row.to_dict() if hasattr(row, "to_dict") else {}
     _rsi = row_dict.get("RSI")
     _pos = row_dict.get("week52_pos")
@@ -689,29 +901,26 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     univ_ranks = {a: int((df_univ[a] > float(row[a])).sum()) + 1 for a in AXES}
 
     if strengths or weaknesses:
-        _sw = st.columns(2)
-        with _sw[0]:
-            if strengths:
-                st.markdown("**✅ 투자 포인트** (60점 이상)")
-                for lbl, score, akey in strengths:
-                    st.markdown(
-                        f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
-                        f"margin:4px 0;background:rgba(0,200,83,0.07);border-radius:0 6px 6px 0;'>"
-                        f"<b>{lbl}</b> <span style='color:{AXIS_COLORS[akey]};font-weight:700;'>"
-                        f"{score:.1f}점</span> — 유니버스 <b>{univ_ranks[akey]}위</b>/{len(df_univ)}위</div>",
-                        unsafe_allow_html=True,
-                    )
-        with _sw[1]:
-            if weaknesses:
-                st.markdown("**⚠️ 주의 사항** (40점 미만)")
-                for lbl, score, akey in weaknesses:
-                    st.markdown(
-                        f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
-                        f"margin:4px 0;background:rgba(244,67,54,0.07);border-radius:0 6px 6px 0;'>"
-                        f"<b>{lbl}</b> <span style='color:#F44336;font-weight:700;'>"
-                        f"{score:.1f}점</span> — 유니버스 <b>{univ_ranks[akey]}위</b>/{len(df_univ)}위</div>",
-                        unsafe_allow_html=True,
-                    )
+        if strengths:
+            st.markdown("**✅ 투자 포인트** (60점 이상)")
+            for lbl, score, akey in strengths:
+                st.markdown(
+                    f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
+                    f"margin:4px 0;background:rgba(0,200,83,0.07);border-radius:0 6px 6px 0;'>"
+                    f"<b>{lbl}</b> <span style='color:{AXIS_COLORS[akey]};font-weight:700;'>"
+                    f"{score:.1f}점</span> — 유니버스 <b>{univ_ranks[akey]}위</b>/{len(df_univ)}위</div>",
+                    unsafe_allow_html=True,
+                )
+        if weaknesses:
+            st.markdown("**⚠️ 주의 사항** (40점 미만)")
+            for lbl, score, akey in weaknesses:
+                st.markdown(
+                    f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
+                    f"margin:4px 0;background:rgba(244,67,54,0.07);border-radius:0 6px 6px 0;'>"
+                    f"<b>{lbl}</b> <span style='color:#F44336;font-weight:700;'>"
+                    f"{score:.1f}점</span> — 유니버스 <b>{univ_ranks[akey]}위</b>/{len(df_univ)}위</div>",
+                    unsafe_allow_html=True,
+                )
 
     # 5축 선별 근거 상세
     st.markdown("**📝 5축 선별 근거 상세**")
@@ -769,8 +978,9 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     st.markdown("**유사 점수 종목** (±10점 이내)")
     similar = fdf[
         (fdf["Total"].between(total - 10, total + 10)) & (fdf["code"] != code)
-    ].head(5).reset_index()[["rank","name","code","Growth","Value","Quality","Trend","Risk","Total"]]
+    ].head(5).reset_index()[["rank", "name", "Total"]]
     if not similar.empty:
+        st.caption("← 좌우 스크롤 가능")
         st.dataframe(similar, use_container_width=True, hide_index=True)
     else:
         st.caption("유사 점수 종목 없음")
@@ -796,7 +1006,7 @@ def _render_analyst_section(code: str, name: str) -> None:
         return
 
     # 목표주가 + 애널리스트 수
-    col_a, col_b, col_c = st.columns(3)
+    col_a, col_b = st.columns(2)
     if consensus.target_price:
         col_a.metric("컨센서스 목표주가", f"{consensus.target_price:,}원")
     if consensus.analyst_count:
@@ -805,7 +1015,7 @@ def _render_analyst_section(code: str, name: str) -> None:
         score_label = {5: "강력매수", 4: "매수", 3: "중립", 2: "매도", 1: "강력매도"}.get(
             round(consensus.consensus_score), f"{consensus.consensus_score:.1f}"
         )
-        col_c.metric("컨센서스 의견", score_label)
+        st.metric("컨센서스 의견", score_label)
 
     # 매수/중립/매도 분포
     total_ops = consensus.buy_count + consensus.neutral_count + consensus.sell_count
@@ -814,18 +1024,18 @@ def _render_analyst_section(code: str, name: str) -> None:
         neu_pct = consensus.neutral_count / total_ops * 100
         sell_pct = consensus.sell_count / total_ops * 100
         st.markdown(
-            f'<div style="display:flex;gap:4px;margin:8px 0;">'
-            f'<div style="flex:{buy_pct:.0f};background:#00C853;height:20px;'
+            f'<div style="display:flex;gap:4px;margin:8px 0;flex-wrap:wrap;">'
+            f'<div style="flex:{buy_pct:.0f};min-width:40px;background:#00C853;height:28px;'
             f'border-radius:4px 0 0 4px;text-align:center;color:#003300;'
-            f'font-size:0.75rem;line-height:20px;" title="매수 {consensus.buy_count}개">'
+            f'font-size:0.8125rem;line-height:28px;" title="매수 {consensus.buy_count}개">'
             f'매수 {buy_pct:.0f}%</div>'
-            f'<div style="flex:{neu_pct:.0f};background:#FB8C00;height:20px;'
-            f'text-align:center;color:#fff;font-size:0.75rem;line-height:20px;" '
+            f'<div style="flex:{neu_pct:.0f};min-width:40px;background:#FB8C00;height:28px;'
+            f'text-align:center;color:#fff;font-size:0.8125rem;line-height:28px;" '
             f'title="중립 {consensus.neutral_count}개">'
             f'중립 {neu_pct:.0f}%</div>'
-            f'<div style="flex:{max(sell_pct,1):.0f};background:#E53935;height:20px;'
+            f'<div style="flex:{max(sell_pct,1):.0f};min-width:40px;background:#E53935;height:28px;'
             f'border-radius:0 4px 4px 0;text-align:center;color:#fff;'
-            f'font-size:0.75rem;line-height:20px;" title="매도 {consensus.sell_count}개">'
+            f'font-size:0.8125rem;line-height:28px;" title="매도 {consensus.sell_count}개">'
             f'매도 {sell_pct:.0f}%</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -857,6 +1067,26 @@ def _render_analyst_section(code: str, name: str) -> None:
                 st.divider()
 
 
+def _mobile_card_html(rank: int, name: str, sector: str,
+                      total: float, grade: str, is_bull: bool) -> str:
+    """모바일 카드 뷰 — CSS .ql-card-list 내부에서만 표시됨."""
+    _gc = {"최우수": "#00C853", "우수": "#1E88E5", "보통": "#FB8C00", "관찰": "#E53935"}.get(grade, "#888")
+    bull_badge = '<span class="ql-bull-badge">🔥 강세섹터</span>' if is_bull else ""
+    return (
+        f'<div class="ql-card">'
+        f'<div class="ql-card-rank">{rank}</div>'
+        f'<div class="ql-card-body">'
+        f'<div class="ql-card-name">{name}</div>'
+        f'<div class="ql-card-sub">{sector}{" " + bull_badge if bull_badge else ""}</div>'
+        f'</div>'
+        f'<div class="ql-card-right">'
+        f'<span class="ql-card-score">{total:.1f}</span>'
+        f'<span class="ql-grade-badge" style="background:{_gc};">{grade}</span>'
+        f'</div>'
+        f'</div>'
+    )
+
+
 # ── 메인 ─────────────────────────────────────────────────────────────────────
 def main() -> None:
     _init_session_state()
@@ -868,7 +1098,7 @@ def main() -> None:
     sector_info: dict = {}
     if not df.empty:
         _sec_map = tuple(sorted(
-            (sec, tuple(grp["code"].tolist()[:2]))
+            (sec, tuple(zip(grp["name"].tolist(), grp["code"].tolist())))
             for sec, grp in df.groupby("sector")
         ))
         try:
@@ -883,10 +1113,13 @@ def main() -> None:
         st.markdown("### 데이터가 아직 없습니다")
         st.info("터미널에서 아래 명령어를 실행해 스코어링 데이터를 생성하세요.")
         st.code("source .venv/bin/activate\npython -m src.main", language="bash")
-        st.markdown("생성 완료 후 사이드바의 **데이터 새로고침** 버튼을 클릭하세요.")
+        st.markdown("생성 완료 후 아래 버튼을 클릭하세요.")
+        if st.button("데이터 새로고침", type="primary", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
         with st.sidebar:
             st.title("QuantLab Screener")
-            if st.button("데이터 새로고침"):
+            if st.button("데이터 새로고침", key="sidebar_refresh"):
                 st.cache_data.clear()
                 st.rerun()
         st.stop()
@@ -894,9 +1127,9 @@ def main() -> None:
     # ── 사이드바 ──────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(
-            "<div style='padding:16px 0 8px;'>"
+            "<div class='sidebar-brand' style='padding:16px 0 8px;'>"
             "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>QuantLab Screener</div>"
-            "<div style='font-size:0.8rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 5축 스코어링</div>"
+            "<div style='font-size:0.875rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 5축 스코어링</div>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -956,26 +1189,49 @@ def main() -> None:
         st.divider()
 
         # 섹터 강도 현황 (5일 수익률 기준 자동 갱신)
-        st.markdown("**📡 섹터 강도** <small style='color:#888;font-size:0.72rem;'>5일 수익률 기준</small>",
+        st.markdown("<div class='sidebar-sector-strength'>", unsafe_allow_html=True)
+        st.markdown("**📡 섹터 강도** <small style='color:#888;font-size:0.8125rem;'>5일 수익률 기준</small>",
                     unsafe_allow_html=True)
         if sector_info and sector_info.get("sector_returns"):
             _sr = sector_info["sector_returns"]
             _bull_set = set(sector_info.get("bull_sectors", []))
             _med = sector_info.get("median_return", 0)
+            _top = sector_info.get("sector_top", {})
+            _rows_html = []
             for _sname, _sret in sorted(_sr.items(), key=lambda x: x[1], reverse=True):
                 _icon = "🔥" if _sname in _bull_set else "▽"
                 _col = "#FF6F00" if _sname in _bull_set else "#78909C"
-                st.markdown(
-                    f"<div style='display:flex;justify-content:space-between;padding:2px 0;"
-                    f"font-size:0.78rem;'>"
+                _stocks = _top.get(_sname, [])
+                if _stocks:
+                    _tt_parts = []
+                    for _i, (_n, _r) in enumerate(_stocks):
+                        _rc = "#4CAF50" if _r >= 0 else "#EF5350"
+                        _tt_parts.append(
+                            f"<div class='ql-tt-row'>"
+                            f"<span class='ql-tt-name'>{_i+1}. {_n}</span>"
+                            f"<span class='ql-tt-ret' style='color:{_rc}'>{_r:+.1f}%</span>"
+                            f"</div>"
+                        )
+                    _tt_rows = "".join(_tt_parts)
+                else:
+                    _tt_rows = "<div style='color:#888;'>데이터 없음</div>"
+                _rows_html.append(
+                    f"<div class='ql-sector-row'>"
+                    f"<div style='display:flex;justify-content:space-between;padding:2px 0;font-size:0.875rem;'>"
                     f"<span style='color:#ccc;'>{_icon} {_sname}</span>"
                     f"<span style='color:{_col};font-weight:700;'>{_sret:+.1f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
+                    f"</div>"
+                    f"<div class='ql-sector-tooltip'>"
+                    f"<div style='color:#aaa;font-size:0.75rem;margin-bottom:4px;'>5일 수익률 상위 종목</div>"
+                    f"{_tt_rows}"
+                    f"</div>"
+                    f"</div>"
                 )
+            st.markdown("\n".join(_rows_html), unsafe_allow_html=True)
             st.caption(f"섹터 중앙값 {_med:+.1f}% | 10분마다 자동 갱신")
         else:
             st.caption("섹터 강도 데이터 로딩 중...")
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
 
@@ -1020,29 +1276,29 @@ def main() -> None:
     kospi_cnt = int((df["market"] == "KOSPI").sum())
     kosdaq_cnt = int((df["market"] == "KOSDAQ").sum())
     st.markdown(
-        f"""<div style="display:flex;align-items:center;justify-content:space-between;
+        f"""<div style="display:flex;flex-direction:column;gap:8px;
           padding:14px 0 10px;border-bottom:1px solid rgba(128,128,128,0.18);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;gap:12px;">
-            <span style="font-size:2.2rem;font-weight:800;letter-spacing:-0.03em;">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:clamp(1.4rem,4vw,2.2rem);font-weight:800;letter-spacing:-0.03em;">
               QuantLab Screener</span>
-            <span style="font-size:0.88rem;color:#888;">
+            <span style="font-size:0.875rem;color:#888;word-break:keep-all;">
               KOSPI·KOSDAQ 시총 상위 100개 · 5축 스코어링</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span style="background:rgba(33,150,243,0.14);border:1px solid rgba(33,150,243,0.28);
-              padding:3px 11px;border-radius:20px;font-size:0.75rem;color:#64B5F6;font-weight:600;">
+              padding:3px 11px;border-radius:20px;font-size:0.8rem;color:#64B5F6;font-weight:600;">
               {len(fdf)}개 종목</span>
             <span style="background:rgba(128,128,128,0.08);border:1px solid rgba(128,128,128,0.18);
-              padding:3px 11px;border-radius:20px;font-size:0.75rem;color:#aaa;">
+              padding:3px 11px;border-radius:20px;font-size:0.8rem;color:#aaa;">
               KOSPI {kospi_cnt} · KOSDAQ {kosdaq_cnt}</span>
-            <span style="font-size:0.75rem;color:#666;">📅 {_last_updated()}</span>
+            <span style="font-size:0.8rem;color:#666;">📅 {_last_updated()}</span>
           </div>
         </div>""",
         unsafe_allow_html=True,
     )
 
     is_empty = fdf.empty
-    tab1, tab3, tab4, tab5 = st.tabs(["📋 종목 랭킹", "📈 분포 분석", "💬 시장 코멘트", "🔬 IC 검증"])
+    tab1, tab3, tab4, tab5 = st.tabs(["📋 랭킹", "📈 분포", "💬 코멘트", "🔬 IC검증"])
 
     # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
     with tab1:
@@ -1053,16 +1309,16 @@ def main() -> None:
             f"<span style='font-size:1.05rem;font-weight:700;'>종목 랭킹 "
             f"<span style='color:#64B5F6;'>{len(fdf)}개</span></span>"
             f"<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;'>"
-            f"<span style='font-size:0.72rem;color:#888;'>등급 기준</span>"
-            f"<span style='background:#00C853;color:#003300;padding:2px 9px;border-radius:12px;"
-            f"font-size:0.72rem;font-weight:700;'>최우수 ≥{t1:.0f}</span>"
-            f"<span style='background:#1E88E5;color:#fff;padding:2px 9px;border-radius:12px;"
-            f"font-size:0.72rem;font-weight:700;'>우수 ≥{t2:.0f}</span>"
-            f"<span style='background:#FB8C00;color:#fff;padding:2px 9px;border-radius:12px;"
-            f"font-size:0.72rem;font-weight:700;'>보통 ≥{t3:.0f}</span>"
-            f"<span style='background:#E53935;color:#fff;padding:2px 9px;border-radius:12px;"
-            f"font-size:0.72rem;font-weight:700;'>관찰</span>"
-            f"<span style='font-size:0.7rem;color:#666;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
+            f"<span style='font-size:0.8rem;color:#888;'>등급 기준</span>"
+            f"<span style='background:#00C853;color:#003300;padding:4px 9px;border-radius:12px;"
+            f"font-size:0.8125rem;font-weight:700;'>최우수 ≥{t1:.0f}</span>"
+            f"<span style='background:#1E88E5;color:#fff;padding:4px 9px;border-radius:12px;"
+            f"font-size:0.8125rem;font-weight:700;'>우수 ≥{t2:.0f}</span>"
+            f"<span style='background:#FB8C00;color:#fff;padding:4px 9px;border-radius:12px;"
+            f"font-size:0.8125rem;font-weight:700;'>보통 ≥{t3:.0f}</span>"
+            f"<span style='background:#E53935;color:#fff;padding:4px 9px;border-radius:12px;"
+            f"font-size:0.8125rem;font-weight:700;'>관찰</span>"
+            f"<span style='font-size:0.75rem;color:#666;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
             f"</div></div>",
             unsafe_allow_html=True,
         )
@@ -1122,7 +1378,26 @@ def main() -> None:
 
             st.caption("💡 종목명 클릭 → 분석 팝업 | 헤더 정렬은 '종목 정렬' 셀렉트박스 사용")
 
-            # ── 커스텀 클릭 테이블 헤더 ──────────────────────────────────────
+            # ── 모바일 카드 목록 (CSS로 모바일에서만 표시) ───────────────────
+            _grade_thresh_card = grade_thresholds
+            _cards_html = ['<div class="ql-card-list">']
+            for _, _crow in display.iterrows():
+                _cname   = str(_crow["종목"]).split("(")[0].strip()
+                _csector = str(_crow.get("sector", ""))
+                _ctrend  = float(_crow.get("Trend", 0)) if "Trend" in _crow else 0.0
+                _cbull   = (_csector in _bull_sectors_main) and (_ctrend >= 65)
+                _cards_html.append(_mobile_card_html(
+                    rank=int(_crow["순위"]),
+                    name=_cname,
+                    sector=_csector,
+                    total=float(_crow["Total"]),
+                    grade=str(_crow["등급"]),
+                    is_bull=_cbull,
+                ))
+            _cards_html.append('</div>')
+            st.markdown("\n".join(_cards_html), unsafe_allow_html=True)
+
+            # ── 커스텀 클릭 테이블 헤더 (데스크톱) ──────────────────────────
             _GCOLS = [0.35, 1.9, 0.65, 1.0, 0.7, 0.7, 0.75, 0.7, 0.7, 0.75, 0.65]
             _GHEADS = ["순위", "종목명 ↗클릭", "시장", "업종", "성장", "가치", "펀더멘털", "추세", "리스크", "종합", "등급"]
             st.markdown("""
@@ -1136,6 +1411,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    min-height: 44px !important;
 }
 div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
     color: #42A5F5 !important;
@@ -1189,8 +1465,8 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 _grade = str(_drow["등급"])
                 _gc = _grade_colors.get(_grade, "#888")
                 _rc[10].markdown(
-                    f"<span style='background:{_gc};color:#fff;padding:2px 7px;"
-                    f"border-radius:10px;font-size:0.72rem;font-weight:700;'>{_grade}</span>",
+                    f"<span style='background:{_gc};color:#fff;padding:4px 9px;"
+                    f"border-radius:10px;font-size:0.8125rem;font-weight:700;'>{_grade}</span>",
                     unsafe_allow_html=True)
 
             st.divider()
@@ -1307,9 +1583,11 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     fig_sec.update_layout(
                         **_base_sec,
                         xaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[0, 100]),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title=""),
+                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title="",
+                                   tickfont=dict(size=9)),
                         coloraxis_showscale=False,
-                        height=400,
+                        height=max(300, len(sec_avg) * 22),
+                        margin=dict(l=70, r=8, t=36, b=20),
                     )
                     st.plotly_chart(fig_sec, use_container_width=True)
                 except Exception as e:
@@ -1328,10 +1606,11 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     fig_cnt.update_layout(
                         **_base_cnt,
                         showlegend=True,
-                        legend=dict(font=dict(size=10), orientation="v"),
-                        height=400,
+                        legend=dict(font=dict(size=9), orientation="v", x=1.0, y=0.5),
+                        height=360,
                     )
-                    fig_cnt.update_traces(textposition="inside", textinfo="percent+label")
+                    fig_cnt.update_traces(textposition="inside", textinfo="percent",
+                                          textfont=dict(size=9))
                     st.plotly_chart(fig_cnt, use_container_width=True)
                 except Exception as e:
                     st.warning(f"업종 비중 차트 오류: {e}")
@@ -1470,79 +1749,79 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
             "- **포워드 수익률**: 점수 계산 이후 1·3·6개월 뒤 주가 변화율"
         )
 
-        col_bt1, col_bt2 = st.columns([1, 1])
-
-        with col_bt1:
-            st.markdown("#### 🔄 가격 축 히스토리컬 IC/IR (Trend·Risk)")
-            st.caption("FDR 가격 데이터만 사용 — 과거 N분기 × Spearman IC 산출")
-            n_qtrs = st.slider("분석 분기 수", min_value=4, max_value=16, value=8, step=1,
-                               help="몇 분기 전까지 소급해 IC를 계산할지 설정합니다. 분기 수가 많을수록 계산 시간이 길어집니다.")
-            if st.button("가격 IC 백테스트 실행", key="btn_price_bt"):
-                with st.spinner(f"{n_qtrs}분기 Trend·Risk IC 계산 중... (약 {n_qtrs * 4}초)"):
-                    try:
-                        from src.backtest import run_price_ic_backtest, price_ic_summary, save_backtest
-                        codes = df["code"].astype(str).tolist()
-                        as_of = _last_updated().split(" ")[0] or pd.Timestamp.today().strftime("%Y-%m-%d")
-                        bt = run_price_ic_backtest(codes, as_of, n_quarters=n_qtrs)
-                        if bt.empty:
-                            st.warning("충분한 가격 데이터가 없습니다.")
-                        else:
-                            save_backtest(bt)
-                            st.session_state["price_bt"] = bt
-                    except Exception as e:
-                        st.error(f"백테스트 실패: {e}")
-
-            # 캐시 로드
-            from src.backtest import load_backtest, price_ic_summary, BT_OUTPUT
-            _bt_ss = st.session_state.get("price_bt")
-            bt_cached = _bt_ss if (_bt_ss is not None) else load_backtest(BT_OUTPUT)
-            if bt_cached is not None and not bt_cached.empty:
-                summary = price_ic_summary(bt_cached)
-                st.dataframe(
-                    summary.style.format({"IC 평균": "{:.4f}", "IC 표준편차": "{:.4f}", "IR": "{:.3f}"}),
-                    use_container_width=True,
-                )
-                # IC 시계열 차트
+        st.markdown("#### 🔄 가격 축 히스토리컬 IC/IR (Trend·Risk)")
+        st.caption("FDR 가격 데이터만 사용 — 과거 N분기 × Spearman IC 산출")
+        n_qtrs = st.slider("분석 분기 수", min_value=4, max_value=16, value=8, step=1,
+                           help="몇 분기 전까지 소급해 IC를 계산할지 설정합니다. 분기 수가 많을수록 계산 시간이 길어집니다.")
+        if st.button("가격 IC 백테스트 실행", key="btn_price_bt"):
+            with st.spinner(f"{n_qtrs}분기 Trend·Risk IC 계산 중... (약 {n_qtrs * 4}초)"):
                 try:
-                    import plotly.graph_objects as go
-                    fig_ic = go.Figure()
-                    for col in bt_cached.columns:
-                        fig_ic.add_trace(go.Scatter(
-                            x=bt_cached.index, y=bt_cached[col],
-                            name=col, mode="lines+markers",
-                        ))
-                    fig_ic.add_hline(y=0.10, line_dash="dash", line_color="green",
-                                     annotation_text="IC=0.10 (유의미)")
-                    fig_ic.add_hline(y=0.05, line_dash="dot", line_color="orange",
-                                     annotation_text="IC=0.05 (약한 신호)")
-                    fig_ic.add_hline(y=0, line_color="gray", line_width=1)
-                    fig_ic.update_layout(title="분기별 IC 추이", **PLOTLY_BASE)
-                    st.plotly_chart(fig_ic, use_container_width=True)
-                except Exception:
-                    pass
-            else:
-                st.info("위 버튼을 눌러 백테스트를 실행하세요.")
+                    from src.backtest import run_price_ic_backtest, price_ic_summary, save_backtest
+                    codes = df["code"].astype(str).tolist()
+                    as_of = _last_updated().split(" ")[0] or pd.Timestamp.today().strftime("%Y-%m-%d")
+                    bt = run_price_ic_backtest(codes, as_of, n_quarters=n_qtrs)
+                    if bt.empty:
+                        st.warning("충분한 가격 데이터가 없습니다.")
+                    else:
+                        save_backtest(bt)
+                        st.session_state["price_bt"] = bt
+                except Exception as e:
+                    st.error(f"백테스트 실패: {e}")
 
-        with col_bt2:
-            st.markdown("#### ⏳ 전 축 단일 기간 IC (CSV 생성 후 경과 시)")
-            st.caption("1개월·3개월·6개월 수익률과 현재 점수의 IC — 기간 경과 후 자동 계산")
-            if st.button("단일 기간 IC 확인", key="btn_single_ic"):
-                with st.spinner("포워드 수익률 계산 중..."):
-                    try:
-                        from src.backtest import run_single_ic_check
-                        ic_df = run_single_ic_check()
-                        st.session_state["single_ic"] = ic_df
-                    except Exception as e:
-                        st.error(f"IC 계산 실패: {e}")
+        # 캐시 로드
+        from src.backtest import load_backtest, price_ic_summary, BT_OUTPUT
+        _bt_ss = st.session_state.get("price_bt")
+        bt_cached = _bt_ss if (_bt_ss is not None) else load_backtest(BT_OUTPUT)
+        if bt_cached is not None and not bt_cached.empty:
+            summary = price_ic_summary(bt_cached)
+            st.dataframe(
+                summary.style.format({"IC 평균": "{:.4f}", "IC 표준편차": "{:.4f}", "IR": "{:.3f}"}),
+                use_container_width=True,
+            )
+            try:
+                import plotly.graph_objects as go
+                fig_ic = go.Figure()
+                for col in bt_cached.columns:
+                    fig_ic.add_trace(go.Scatter(
+                        x=bt_cached.index, y=bt_cached[col],
+                        name=col, mode="lines+markers",
+                    ))
+                fig_ic.add_hline(y=0.10, line_dash="dash", line_color="green",
+                                 annotation_text="IC=0.10 (유의미)")
+                fig_ic.add_hline(y=0.05, line_dash="dot", line_color="orange",
+                                 annotation_text="IC=0.05 (약한 신호)")
+                fig_ic.add_hline(y=0, line_color="gray", line_width=1)
+                fig_ic.update_layout(
+                    title="분기별 IC 추이", **PLOTLY_BASE,
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=9),
+                               gridcolor="rgba(128,128,128,0.1)"),
+                    legend=dict(orientation="h", y=-0.25, font=dict(size=9)),
+                )
+                st.plotly_chart(fig_ic, use_container_width=True)
+            except Exception:
+                pass
+        else:
+            st.info("위 버튼을 눌러 백테스트를 실행하세요.")
 
-            ic_cached = st.session_state.get("single_ic")
-            if ic_cached is not None and not ic_cached.empty:
-                st.dataframe(ic_cached.style.format(
-                    {c: "{:.4f}" for c in ic_cached.columns if c not in ["상태", "경과일"]}
-                ), use_container_width=True)
-            else:
-                st.info("위 버튼을 눌러 IC를 확인하세요.\n\n"
-                        "CSV 생성 후 충분한 기간(1개월 이상)이 지나야 의미 있는 IC가 산출됩니다.")
+        st.markdown("#### ⏳ 전 축 단일 기간 IC (CSV 생성 후 경과 시)")
+        st.caption("1개월·3개월·6개월 수익률과 현재 점수의 IC — 기간 경과 후 자동 계산")
+        if st.button("단일 기간 IC 확인", key="btn_single_ic"):
+            with st.spinner("포워드 수익률 계산 중..."):
+                try:
+                    from src.backtest import run_single_ic_check
+                    ic_df = run_single_ic_check()
+                    st.session_state["single_ic"] = ic_df
+                except Exception as e:
+                    st.error(f"IC 계산 실패: {e}")
+
+        ic_cached = st.session_state.get("single_ic")
+        if ic_cached is not None and not ic_cached.empty:
+            st.dataframe(ic_cached.style.format(
+                {c: "{:.4f}" for c in ic_cached.columns if c not in ["상태", "경과일"]}
+            ), use_container_width=True)
+        else:
+            st.info("위 버튼을 눌러 IC를 확인하세요.\n\n"
+                    "CSV 생성 후 충분한 기간(1개월 이상)이 지나야 의미 있는 IC가 산출됩니다.")
 
         st.markdown("---")
         st.markdown("#### 📖 IC/IR 해석 가이드")
