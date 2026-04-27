@@ -398,6 +398,44 @@ def _get_price_history(code: str) -> pd.DataFrame:
     return get_price_data(code, start, end)
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _compute_sector_strength(sector_codes_frozen: tuple) -> dict:
+    """섹터별 최근 5일(1주) 수익률 계산 → 중앙값 기준 bull/bear 자동 분류.
+    TTL=600초(10분)로 장중 변화 반영.
+    sector_codes_frozen: ((섹터명, (코드1, 코드2, ...)), ...) 해시 가능 튜플.
+    """
+    from src.data_loader import get_price_data
+    end   = pd.Timestamp.today().strftime("%Y-%m-%d")
+    start = (pd.Timestamp.today() - pd.DateOffset(days=20)).strftime("%Y-%m-%d")
+
+    sector_returns: dict[str, float] = {}
+    for sector, codes in sector_codes_frozen:
+        rets = []
+        for code in codes[:2]:  # 섹터당 최대 2종목 샘플링
+            try:
+                pdata = get_price_data(code, start, end)
+                if pdata.empty or "Close" not in pdata.columns or len(pdata) < 5:
+                    continue
+                ret = (pdata["Close"].iloc[-1] / pdata["Close"].iloc[-5] - 1) * 100
+                rets.append(float(ret))
+            except Exception:
+                continue
+        if rets:
+            sector_returns[sector] = round(float(pd.Series(rets).median()), 2)
+
+    if not sector_returns:
+        return {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0}
+
+    median_ret = float(pd.Series(list(sector_returns.values())).median())
+    bull_sectors = [s for s, r in sector_returns.items() if r > median_ret]
+
+    return {
+        "sector_returns": sector_returns,
+        "bull_sectors": bull_sectors,
+        "median_return": round(median_ret, 2),
+    }
+
+
 def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
     """1년 주가 라인차트 + MA20/60/120 + 52주 고저 + 거래량."""
     if price_df.empty or "Close" not in price_df.columns:
@@ -492,14 +530,21 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
     return fig
 
 
-@st.dialog("종목 분석", width="large")
+@st.dialog("종목 분析", width="large")
 def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
-                       grade_thresholds: tuple) -> None:
-    """Tab1 행 클릭 시 모달 팝업으로 5축 종목 분석 표시."""
+                       grade_thresholds: tuple, sector_info: dict | None = None) -> None:
+    """Tab1 행 클릭 시 모달 팝업으로 5축 종목 분析 표시."""
     code  = str(row["code"])
     name  = str(row["name"])
     total = float(row["Total"])
     rank_val = int(row.get("rank", 0))
+    sector = str(row.get("sector", ""))
+
+    _bull_sectors = set(sector_info.get("bull_sectors", [])) if sector_info else set()
+    _sec_rets = sector_info.get("sector_returns", {}) if sector_info else {}
+    _is_bull = sector in _bull_sectors
+    _trend_val = float(row.get("Trend", 0))
+    _is_bull_pick = _is_bull and _trend_val >= 65
 
     options = fdf.reset_index().apply(
         lambda r: f"{int(r['rank'])}위 {r['name']} ({r['code']})", axis=1
@@ -507,10 +552,40 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
 
     # 헤더: 등급 배지 + 종합점수
     st.markdown(grade_badge_html(total, grade_thresholds), unsafe_allow_html=True)
+
+    _sec_ret = _sec_rets.get(sector)
+    if _is_bull_pick and _sec_ret is not None:
+        _sec_badge = (
+            f"<span style='background:#E65100;color:#fff;padding:2px 9px;"
+            f"border-radius:4px;font-size:0.82rem;margin-left:8px;font-weight:700;'>"
+            f"🔥 강세섹터 픽 {_sec_ret:+.1f}%</span>"
+        )
+    elif _is_bull_pick:
+        _sec_badge = (
+            "<span style='background:#E65100;color:#fff;padding:2px 9px;"
+            "border-radius:4px;font-size:0.82rem;margin-left:8px;font-weight:700;'>"
+            "🔥 강세섹터 픽</span>"
+        )
+    elif _is_bull and _sec_ret is not None:
+        _sec_badge = (
+            f"<span style='background:#1B5E20;color:#A5D6A7;padding:2px 9px;"
+            f"border-radius:4px;font-size:0.82rem;margin-left:8px;'>"
+            f"▲ 강세섹터 {_sec_ret:+.1f}%</span>"
+        )
+    elif _sec_ret is not None:
+        _sec_badge = (
+            f"<span style='background:#37474F;color:#90A4AE;padding:2px 9px;"
+            f"border-radius:4px;font-size:0.82rem;margin-left:8px;'>"
+            f"▽ 약세섹터 {_sec_ret:+.1f}%</span>"
+        )
+    else:
+        _sec_badge = ""
+
     st.markdown(
-        f"<div style='display:flex;align-items:baseline;gap:10px;margin:6px 0 10px;'>"
+        f"<div style='display:flex;align-items:baseline;gap:10px;margin:6px 0 10px;flex-wrap:wrap;'>"
         f"<span style='font-size:1.5rem;font-weight:800;'>{name}</span>"
         f"<span style='color:#888;font-size:0.9rem;'>{code} · 유니버스 {rank_val}위</span>"
+        f"{_sec_badge}"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -789,6 +864,19 @@ def main() -> None:
     df = load_data()
     grade_thresholds = compute_grade_thresholds(df) if not df.empty else (60.0, 50.0, 40.0)
 
+    # 섹터 강도 계산 (5일 수익률, 10분 캐시)
+    sector_info: dict = {}
+    if not df.empty:
+        _sec_map = tuple(sorted(
+            (sec, tuple(grp["code"].tolist()[:2]))
+            for sec, grp in df.groupby("sector")
+        ))
+        try:
+            sector_info = _compute_sector_strength(_sec_map)
+        except Exception:
+            sector_info = {}
+    _bull_sectors_main = set(sector_info.get("bull_sectors", []))
+
     # UX: Full-page onboarding when no data
     if df.empty:
         st.title("QuantLab Screener")
@@ -864,6 +952,30 @@ def main() -> None:
         if quick_srch:
             st.session_state.tab2_search = quick_srch
             st.caption("→ '종목 분석' 탭을 클릭하세요")
+
+        st.divider()
+
+        # 섹터 강도 현황 (5일 수익률 기준 자동 갱신)
+        st.markdown("**📡 섹터 강도** <small style='color:#888;font-size:0.72rem;'>5일 수익률 기준</small>",
+                    unsafe_allow_html=True)
+        if sector_info and sector_info.get("sector_returns"):
+            _sr = sector_info["sector_returns"]
+            _bull_set = set(sector_info.get("bull_sectors", []))
+            _med = sector_info.get("median_return", 0)
+            for _sname, _sret in sorted(_sr.items(), key=lambda x: x[1], reverse=True):
+                _icon = "🔥" if _sname in _bull_set else "▽"
+                _col = "#FF6F00" if _sname in _bull_set else "#78909C"
+                st.markdown(
+                    f"<div style='display:flex;justify-content:space-between;padding:2px 0;"
+                    f"font-size:0.78rem;'>"
+                    f"<span style='color:#ccc;'>{_icon} {_sname}</span>"
+                    f"<span style='color:{_col};font-weight:700;'>{_sret:+.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            st.caption(f"섹터 중앙값 {_med:+.1f}% | 10분마다 자동 갱신")
+        else:
+            st.caption("섹터 강도 데이터 로딩 중...")
 
         st.divider()
 
@@ -1046,11 +1158,16 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                                 unsafe_allow_html=True)
                 _stock_name = str(_drow["종목"]).split("(")[0].strip()
                 _stock_code = str(_drow["code"])
-                if _rc[1].button(_stock_name, key=f"stk_{_stock_code}", type="tertiary",
+                _row_sector = str(_drow.get("sector", ""))
+                _row_trend = float(_drow.get("Trend", 0)) if "Trend" in _drow else 0.0
+                _is_bull_row = (_row_sector in _bull_sectors_main) and (_row_trend >= 65)
+                _btn_label = f"🔥 {_stock_name}" if _is_bull_row else _stock_name
+                if _rc[1].button(_btn_label, key=f"stk_{_stock_code}", type="tertiary",
                                  use_container_width=True):
                     _clicked_row = fdf.reset_index()[fdf.reset_index()["code"] == _stock_code]
                     if not _clicked_row.empty:
-                        _show_stock_dialog(_clicked_row.iloc[0], df, fdf, grade_thresholds)
+                        _show_stock_dialog(_clicked_row.iloc[0], df, fdf, grade_thresholds,
+                                           sector_info=sector_info)
                 _rc[2].markdown(f"<span style='font-size:0.82rem;'>{_drow['market']}</span>",
                                 unsafe_allow_html=True)
                 _rc[3].markdown(f"<span style='font-size:0.82rem;'>{_drow['sector']}</span>",
