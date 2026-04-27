@@ -1377,7 +1377,8 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
 
             # 캐시 로드
             from src.backtest import load_backtest, price_ic_summary, BT_OUTPUT
-            bt_cached = st.session_state.get("price_bt") or load_backtest(BT_OUTPUT)
+            _bt_ss = st.session_state.get("price_bt")
+            bt_cached = _bt_ss if (_bt_ss is not None) else load_backtest(BT_OUTPUT)
             if bt_cached is not None and not bt_cached.empty:
                 summary = price_ic_summary(bt_cached)
                 st.dataframe(
