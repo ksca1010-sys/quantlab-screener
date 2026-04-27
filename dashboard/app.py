@@ -1186,8 +1186,9 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                         color_continuous_scale="RdYlGn",
                         labels={"Total": "평균점수", "sector": "업종"},
                     )
+                    _base_sec = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
                     fig_sec.update_layout(
-                        **PLOTLY_BASE,
+                        **_base_sec,
                         xaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[0, 100]),
                         yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title=""),
                         coloraxis_showscale=False,
@@ -1206,8 +1207,9 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                         title="업종별 종목 수 비중",
                         hole=0.45,
                     )
+                    _base_cnt = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
                     fig_cnt.update_layout(
-                        **PLOTLY_BASE,
+                        **_base_cnt,
                         showlegend=True,
                         legend=dict(font=dict(size=10), orientation="v"),
                         height=400,
