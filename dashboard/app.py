@@ -1505,6 +1505,42 @@ def main() -> None:
                 mime="text/csv",
             )
 
+            with st.expander("🏆 업종별 TOP 종목"):
+                SECTOR_ICONS = {
+                    "전기·전자": "💡", "의약품": "💊", "기계": "⚙️",
+                    "서비스업": "🌐", "운수장비": "🚗", "은행": "🏦",
+                    "화학": "🧪", "증권": "📈", "건설업": "🏗️",
+                    "운수·창고업": "✈️", "철강·금속": "🔩", "보험업": "🛡️",
+                    "화장품·의류": "💄", "통신업": "📡", "전기·가스업": "⚡",
+                    "담배": "🌿", "음식료품": "🍱", "기타": "",
+                }
+                sector_top = (
+                    fdf.reset_index()
+                    .sort_values("Total", ascending=False)
+                    .groupby("sector", as_index=False)
+                    .first()
+                    .sort_values("Total", ascending=False)
+                )
+                cols = st.columns(4)
+                for i, (_, srow) in enumerate(sector_top.iterrows()):
+                    grade = investment_grade(srow["Total"], grade_thresholds)
+                    cfg = GRADE_CONFIG[grade]
+                    icon = SECTOR_ICONS.get(srow["sector"], "")
+                    with cols[i % 4]:
+                        st.markdown(
+                            f'<div style="border:1px solid {cfg["border"]};border-left:4px solid {cfg["bg"]};'
+                            f'border-radius:2px;padding:10px 12px;margin-bottom:8px;">'
+                            f'<div style="font-size:0.68rem;color:#6A6050;margin-bottom:4px;font-family:monospace;text-transform:uppercase;letter-spacing:0.08em;">'
+                            f'{icon} {srow["sector"]}</div>'
+                            f'<div style="font-size:0.95rem;font-weight:700;color:#E8E0CC;margin-bottom:6px;font-family:Noto Sans KR,sans-serif;">{srow["name"]}</div>'
+                            f'<span style="background:{cfg["bg"]};color:{cfg["text"]};border:1px solid {cfg["border"]};'
+                            f'padding:2px 7px;border-radius:2px;font-size:0.68rem;font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;">'
+                            f'{grade}</span>'
+                            f'<span style="font-size:0.82rem;margin-left:8px;color:#9A9278;font-family:monospace;">{srow["Total"]:.1f}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+
             base_cols = ["name", "code", "market", "sector",
                          "Growth", "Value", "Quality", "Trend", "Risk", "Total"]
             extra_cols = [c for c in ["RSI", "week52_pos", "entry_signal"] if c in fdf.columns]
@@ -1641,42 +1677,6 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     f"border-radius:2px;font-size:0.72rem;font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>{_grade}</span>",
                     unsafe_allow_html=True)
 
-            st.divider()
-            with st.expander("🏆 업종별 TOP 종목"):
-                SECTOR_ICONS = {
-                    "전기·전자": "💡", "의약품": "💊", "기계": "⚙️",
-                    "서비스업": "🌐", "운수장비": "🚗", "은행": "🏦",
-                    "화학": "🧪", "증권": "📈", "건설업": "🏗️",
-                    "운수·창고업": "✈️", "철강·금속": "🔩", "보험업": "🛡️",
-                    "화장품·의류": "💄", "통신업": "📡", "전기·가스업": "⚡",
-                    "담배": "🌿", "음식료품": "🍱", "기타": "",
-                }
-                sector_top = (
-                    fdf.reset_index()
-                    .sort_values("Total", ascending=False)
-                    .groupby("sector", as_index=False)
-                    .first()
-                    .sort_values("Total", ascending=False)
-                )
-                cols = st.columns(4)
-                for i, (_, srow) in enumerate(sector_top.iterrows()):
-                    grade = investment_grade(srow["Total"], grade_thresholds)
-                    cfg = GRADE_CONFIG[grade]
-                    icon = SECTOR_ICONS.get(srow["sector"], "")
-                    with cols[i % 4]:
-                        st.markdown(
-                            f'<div style="border:1px solid {cfg["border"]};border-left:4px solid {cfg["bg"]};'
-                            f'border-radius:8px;padding:10px 12px;margin-bottom:10px;">'
-                            f'<div style="font-size:0.72rem;color:rgba(180,180,180,0.8);margin-bottom:4px;">'
-                            f'{icon} {srow["sector"]}</div>'
-                            f'<div style="font-size:1rem;font-weight:700;margin-bottom:6px;">{srow["name"]}</div>'
-                            f'<span style="background:{cfg["bg"]};color:{cfg["text"]};'
-                            f'padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:700;">'
-                            f'{grade}</span>'
-                            f'<span style="font-size:0.85rem;margin-left:6px;opacity:0.9;">{srow["Total"]:.1f}점</span>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
 
     # ── Tab 2: 종목 분석 ──────────────────────────────────────────────────────
     with tab2:
