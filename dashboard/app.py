@@ -735,10 +735,59 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def _show_company_overview(row: pd.Series, grade_thresholds: tuple) -> None:
+    """종목 기본 개요 카드 — tab2 상단에 표시."""
+    name = str(row.get("name", ""))
+    code = str(row.get("code", ""))
+    market = str(row.get("market", ""))
+    sector = str(row.get("sector", ""))
+    total = float(row.get("Total", 0))
+    data_grade = str(row.get("data_grade", ""))
+
+    mc_str = "—"
+    mc_raw = row.get("market_cap", None)
+    if mc_raw is not None and pd.notna(mc_raw):
+        mc = float(mc_raw)
+        if mc >= 1e12:
+            mc_str = f"{mc / 1e12:.1f}조원"
+        elif mc >= 1e8:
+            mc_str = f"{mc / 1e8:.0f}억원"
+
+    grade = investment_grade(total, grade_thresholds)
+    cfg = GRADE_CONFIG[grade]
+    market_color = "#1E88E5" if market == "KOSPI" else "#7B1FA2"
+
+    st.markdown(
+        f"<div style='background:rgba(128,128,128,0.08);border-radius:12px;"
+        f"padding:16px 20px;margin-bottom:16px;border:1px solid rgba(128,128,128,0.15);'>"
+        f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;'>"
+        f"<span style='font-size:1.5rem;font-weight:800;'>{name}</span>"
+        f"<span style='color:#888;font-size:0.9rem;'>{code}</span>"
+        f"<span style='background:{cfg['bg']};color:{cfg['text']};padding:3px 12px;"
+        f"border-radius:12px;font-size:0.82rem;font-weight:700;'>{grade}</span>"
+        f"</div>"
+        f"<div style='display:flex;gap:12px;flex-wrap:wrap;align-items:center;'>"
+        f"<span style='background:{market_color}33;color:{market_color};padding:3px 10px;"
+        f"border-radius:6px;font-weight:700;font-size:0.88rem;'>{market}</span>"
+        f"<span style='color:#ccc;font-size:0.9rem;'>📂 {sector}</span>"
+        f"<span style='color:#ccc;font-size:0.9rem;'>💰 {mc_str}</span>"
+        f"<span style='color:#888;font-size:0.82rem;'>데이터등급 {data_grade}</span>"
+        f"</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
 @st.dialog("종목 분析", width="large")
 def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
                        grade_thresholds: tuple, sector_info: dict | None = None) -> None:
-    """Tab1 행 클릭 시 모달 팝업으로 5축 종목 분析 표시."""
+    """Tab1 행 클릭 시 모달 팝업."""
+    _render_stock_detail(row, df_univ, fdf, grade_thresholds, sector_info)
+
+
+def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
+                         grade_thresholds: tuple, sector_info: dict | None = None) -> None:
+    """5축 종목 분析 인라인 렌더링 (Tab2 직접 호출 / dialog 래퍼 공유)."""
     code  = str(row["code"])
     name  = str(row["name"])
     total = float(row["Total"])
@@ -751,7 +800,10 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
     _trend_val = float(row.get("Trend", 0))
     _is_bull_pick = _is_bull and _trend_val >= 65
 
-    options = fdf.reset_index().apply(
+    fdf_display = fdf.reset_index()
+    if "rank" not in fdf_display.columns:
+        fdf_display["rank"] = range(1, len(fdf_display) + 1)
+    options = fdf_display.apply(
         lambda r: f"{int(r['rank'])}위 {r['name']} ({r['code']})", axis=1
     ).tolist()
 
@@ -1298,7 +1350,7 @@ def main() -> None:
     )
 
     is_empty = fdf.empty
-    tab1, tab3, tab4, tab5 = st.tabs(["📋 랭킹", "📈 분포", "💬 코멘트", "🔬 IC검증"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 랭킹", "🔍 종목 분석", "📈 분포", "💬 코멘트", "🔬 IC검증"])
 
     # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
     with tab1:
@@ -1505,6 +1557,50 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                             f'</div>',
                             unsafe_allow_html=True,
                         )
+
+    # ── Tab 2: 종목 분석 ──────────────────────────────────────────────────────
+    with tab2:
+        st.subheader("종목 분석")
+
+        if is_empty:
+            st.warning("필터 조건에 맞는 종목이 없습니다. 조건을 완화하거나 **필터 초기화**를 클릭하세요.")
+        else:
+            all_rows = df.reset_index()
+            codes_list = all_rows["code"].tolist()
+            options_t2 = [f"{n} ({c})" for n, c in zip(all_rows["name"], codes_list)]
+
+            # 사이드바 빠른검색 또는 Tab1 클릭 연동
+            pre_query = st.session_state.get("tab2_search", "") or ""
+            pre_code  = st.session_state.get("selected_code")
+            default_idx = 0
+            if pre_code and pre_code in codes_list:
+                default_idx = codes_list.index(pre_code)
+            elif pre_query:
+                matched = [
+                    i for i, o in enumerate(options_t2)
+                    if pre_query.lower() in o.lower()
+                ]
+                if matched:
+                    default_idx = matched[0]
+
+            sel_t2 = st.selectbox(
+                "종목 선택",
+                options_t2,
+                index=default_idx,
+                key="tab2_selectbox",
+            )
+            sel_code_t2 = sel_t2.rsplit("(", 1)[-1].rstrip(")")
+            sel_row_t2  = all_rows[all_rows["code"] == sel_code_t2].iloc[0]
+
+            if "rank" not in sel_row_t2.index:
+                ranked = all_rows.sort_values("Total", ascending=False).reset_index(drop=True)
+                ranked["rank"] = ranked.index + 1
+                rank_map = dict(zip(ranked["code"], ranked["rank"]))
+                sel_row_t2 = sel_row_t2.copy()
+                sel_row_t2["rank"] = rank_map.get(sel_code_t2, 0)
+
+            _show_company_overview(sel_row_t2, grade_thresholds)
+            _render_stock_detail(sel_row_t2, df, fdf, grade_thresholds, sector_info)
 
     # ── Tab 3: 분포 분석 ──────────────────────────────────────────────────────
     with tab3:

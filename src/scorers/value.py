@@ -30,6 +30,21 @@ def score_value(
     s3 = _peg_score(df)       # 0~25
     s4 = _dividend_score(df)  # 0~15
 
+    # PEG 커버리지 < 30% 시: PEG 0점 처리하고 나머지에 비례 재배분 (PER 40 + PBR 40 + Div 20)
+    # 이유: PEG 데이터 없는 종목에 0점을 부여하면 섹터 내 순위를 왜곡함 (헌법 위반)
+    if "peg" in df.columns:
+        peg_valid = pd.to_numeric(df["peg"], errors="coerce")
+        peg_coverage = (peg_valid > 0).sum() / max(len(df), 1)
+    else:
+        peg_coverage = 0.0
+
+    if peg_coverage < 0.30:
+        logger.debug("PEG 커버리지 %.0f%% < 30%% → 재배분 (PER 40 + PBR 40 + Div 20)", peg_coverage * 100)
+        s1 = s1 * (40 / 30)
+        s2 = s2 * (40 / 30)
+        s4 = s4 * (20 / 15)
+        s3 = pd.Series(0.0, index=s3.index)
+
     total = s1 + s2 + s3 + s4  # 0~100
     result = clip_score(total)
     result.index = df["code"].tolist()

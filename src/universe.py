@@ -63,9 +63,13 @@ def _get_sector_map_pykrx(ref_date: str) -> dict[str, str]:
     return sector_map
 
 
-def build_universe(as_of_date: str | None = None) -> pd.DataFrame:
+def build_universe(
+    as_of_date: str | None = None,
+    kospi_top: int = 200,
+    kosdaq_top: int = 100,
+) -> pd.DataFrame:
     """
-    KOSPI + KOSDAQ 통합 시총 상위 100개 종목 DataFrame 반환.
+    KOSPI 상위 kospi_top + KOSDAQ 상위 kosdaq_top 종목 합산 유니버스 반환.
     Columns: code, name, market, sector, market_cap
     """
     from pandas.tseries.offsets import BDay
@@ -96,19 +100,39 @@ def build_universe(as_of_date: str | None = None) -> pd.DataFrame:
             listing["sector"] = "기타"
             logger.warning("섹터 정보 조회 실패 → 전체 '기타'로 처리")
 
-    top100 = (
-        listing.sort_values("market_cap", ascending=False)
-        .head(100)
+    # 시장별 분리 선정: KOSPI 상위 N + KOSDAQ(+GLOBAL) 상위 M
+    kospi_df = (
+        listing[listing["market"] == "KOSPI"]
+        .sort_values("market_cap", ascending=False)
+        .head(kospi_top)
+    )
+    kosdaq_df = (
+        listing[listing["market"].str.startswith("KOSDAQ")]
+        .sort_values("market_cap", ascending=False)
+        .head(kosdaq_top)
+    )
+    combined = (
+        pd.concat([kospi_df, kosdaq_df])
+        .sort_values("market_cap", ascending=False)
+        .drop_duplicates(subset="code")
         .reset_index(drop=True)[["code", "name", "market", "sector", "market_cap"]]
     )
-    top100.index = top100.index + 1
-    top100.index.name = "rank"
+    combined.index = combined.index + 1
+    combined.index.name = "rank"
 
-    logger.info("유니버스 확정: %d개 종목", len(top100))
-    return top100
+    logger.info(
+        "유니버스 확정: %d개 종목 (KOSPI %d + KOSDAQ %d)",
+        len(combined), len(kospi_df), len(kosdaq_df),
+    )
+    return combined
 
 
-def load_universe(refresh: bool = False, as_of_date: str | None = None) -> pd.DataFrame:
+def load_universe(
+    refresh: bool = False,
+    as_of_date: str | None = None,
+    kospi_top: int = 200,
+    kosdaq_top: int = 100,
+) -> pd.DataFrame:
     """
     universe.yaml이 존재하면 로드, 없거나 refresh=True이면 재생성.
     """
@@ -121,13 +145,15 @@ def load_universe(refresh: bool = False, as_of_date: str | None = None) -> pd.Da
         return pd.DataFrame(data["stocks"])
 
     logger.info("유니버스 재생성 중...")
-    df = build_universe(as_of_date=as_of_date)
+    df = build_universe(as_of_date=as_of_date, kospi_top=kospi_top, kosdaq_top=kosdaq_top)
 
     with open(UNIVERSE_PATH, "w") as f:
         yaml.dump(
             {
                 "generated_at": pd.Timestamp.now().isoformat(),
                 "as_of_date": as_of_date,
+                "kospi_top": kospi_top,
+                "kosdaq_top": kosdaq_top,
                 "count": len(df),
                 "stocks": df.reset_index().to_dict(orient="records"),
             },
@@ -135,5 +161,5 @@ def load_universe(refresh: bool = False, as_of_date: str | None = None) -> pd.Da
             allow_unicode=True,
             default_flow_style=False,
         )
-    logger.info("유니버스 저장 완료: %s", UNIVERSE_PATH)
+    logger.info("유니버스 저장 완료: %s (%d개)", UNIVERSE_PATH, len(df))
     return df

@@ -224,7 +224,7 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     from src.scorers.quality import score_quality
     from src.scorers.trend import score_trend
     from src.scorers.risk import score_risk
-    from src.aggregator import aggregate, to_csv
+    from src.aggregator import aggregate, add_data_grade, to_csv
 
     logger.info("=== QuantLab Screener 시작 (기준일: %s) ===", as_of_date)
 
@@ -280,10 +280,20 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
         result.drop(columns=["code_str"], inplace=True)
         logger.info("섹터 고정값 적용 완료 (config/sector_map.yaml)")
 
+    # 데이터 신뢰도 등급 부여 (A/B/C/D) — 원시 지표 컬럼을 임시 병합 후 등급 계산
+    _grade_cols = ["code", "per", "pbr", "dividend_yield", "roe", "operating_margin"]
+    _available = [c for c in _grade_cols if c in market_data.columns]
+    result = result.merge(market_data[_available], on="code", how="left")
+    result = add_data_grade(result)
+    result = result.drop(columns=[c for c in _available if c != "code" and c in result.columns])
+
     output_dir = os.getenv("OUTPUT_DIR", "./output")
-    out_path = f"{output_dir}/stocks_top100.csv"
-    to_csv(result, out_path)
-    logger.info("결과 저장 완료: %s", out_path)
+    # 전체 유니버스 (300개) 저장 — 상위권 밖 탐색용
+    to_csv(result, f"{output_dir}/stocks_universe_full.csv")
+    logger.info("전체 유니버스 저장 완료: %s/stocks_universe_full.csv (%d개)", output_dir, len(result))
+    # 상위 100개만 저장 — 대시보드 + 하위호환
+    to_csv(result, f"{output_dir}/stocks_top100.csv", top_n=100)
+    logger.info("TOP 100 저장 완료: %s/stocks_top100.csv", output_dir)
 
     return result
 
@@ -338,10 +348,18 @@ def main() -> None:
         default=_ref.strftime("%Y-%m-%d"),
         help="분석 기준일 (YYYY-MM-DD, 기본: 최근 영업일)",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="비대화형 모드 (cron/CI 자동화용) — DART 키 없으면 즉시 종료",
+    )
     args = parser.parse_args()
 
     # STOP 조건 확인: DART API 키
     if not _check_dart_key():
+        if args.yes:
+            print("[STOP] DART_API_KEY 없음. .env 파일을 확인하세요.")
+            sys.exit(1)
         print("\n[STOP] DART API 키 입력 필요.")
         print(
             "opendart.fss.or.kr 에서 인증키 신청 후 "
