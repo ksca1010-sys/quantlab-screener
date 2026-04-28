@@ -983,36 +983,40 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
 
     # 진입 분석
     st.markdown("**📡 진입 분석**")
-    _ic_r1 = st.columns(2)
-    _ic_r2 = st.columns(2)
-    ic1, ic2 = _ic_r1[0], _ic_r1[1]
-    ic3, ic4 = _ic_r2[0], _ic_r2[1]
     row_dict = row.to_dict() if hasattr(row, "to_dict") else {}
     _rsi = row_dict.get("RSI")
     _pos = row_dict.get("week52_pos")
     _sig = row_dict.get("entry_signal")
+    _ic_metrics: list[tuple] = []
     if _rsi is not None and pd.notna(_rsi):
         rsi_v = float(_rsi)
         rsi_desc = "과매수 주의" if rsi_v > 70 else "과매도 반등 구간" if rsi_v < 30 else "적정 구간"
-        ic1.metric("RSI(14)", f"{rsi_v:.0f}", delta=rsi_desc, delta_color="off")
+        _ic_metrics.append(("RSI(14)", f"{rsi_v:.0f}", rsi_desc, "off"))
     if _pos is not None and pd.notna(_pos):
-        ic2.metric("52주 위치", f"{float(_pos):.0f}%")
+        _ic_metrics.append(("52주 위치", f"{float(_pos):.0f}%", None, "off"))
     if _sig:
         sig_map = {"매수유망": "🟢 매수유망", "관심": "🔵 관심", "과열주의": "🔴 과열주의",
                    "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
-        ic3.metric("진입 신호", sig_map.get(_sig, _sig))
+        _ic_metrics.append(("진입 신호", sig_map.get(_sig, _sig), None, "off"))
     try:
         _cur = _get_current_price(code)
         _cons, _ = _get_analyst_data(code)
         _tp = _cons.target_price if _cons and not _cons.error else None
         if _cur and _tp and _cur > 0:
             upside = (_tp - _cur) / _cur * 100
-            ic4.metric("목표주가 상승여력", f"{upside:+.1f}%", delta=f"목표 {_tp:,}원",
-                       delta_color="normal" if upside >= 0 else "inverse")
+            _ic_metrics.append(("목표주가 상승여력", f"{upside:+.1f}%", f"목표 {_tp:,}원",
+                                 "normal" if upside >= 0 else "inverse"))
         else:
-            ic4.metric("목표주가 상승여력", "—")
+            _ic_metrics.append(("목표주가 상승여력", "—", None, "off"))
     except Exception:
-        ic4.metric("목표주가 상승여력", "—")
+        _ic_metrics.append(("목표주가 상승여력", "—", None, "off"))
+    if _ic_metrics:
+        _ic_cols = st.columns(len(_ic_metrics))
+        for _col, (_lbl, _val, _delta, _dcol) in zip(_ic_cols, _ic_metrics):
+            if _delta:
+                _col.metric(_lbl, _val, delta=_delta, delta_color=_dcol)
+            else:
+                _col.metric(_lbl, _val)
 
     st.markdown("---")
 
