@@ -27,12 +27,12 @@ CSV_PATH = Path(__file__).parent.parent / "output" / "stocks_top100.csv"
 AXES = ["Growth", "Value", "Quality", "Trend", "Risk"]
 AXIS_LABELS = {"Growth": "성장", "Value": "가치", "Quality": "펀더멘털", "Trend": "추세", "Risk": "리스크"}
 AXIS_COLORS = {
-    "Growth":  "#4CAF50",
-    "Value":   "#2196F3",
-    "Quality": "#FF9800",
-    "Trend":   "#9C27B0",
-    "Risk":    "#00BCD4",
-    "Total":   "#F44336",
+    "Growth":  "#38B26B",   # terminal green
+    "Value":   "#6FCFCF",   # terminal cyan
+    "Quality": "#F0C040",   # terminal amber
+    "Trend":   "#9A9278",   # terminal text-base
+    "Risk":    "#E03030",   # terminal red
+    "Total":   "#B8922E",   # amber-dim
 }
 AXIS_TOOLTIPS = {
     "Growth":  "YoY 매출성장률·영업이익성장률·EPS CAGR (DART 공시 기반). 데이터 없으면 0점.",
@@ -45,10 +45,10 @@ REQUIRED_COLS = ["name", "code", "market", "sector"] + AXES + ["Total"]
 
 # Design: Grade colors — accessible contrast, no emoji
 GRADE_CONFIG = {
-    "최우수": {"bg": "#00C853", "text": "#003300", "border": "#00E676", "label": "최우수"},
-    "우수":   {"bg": "#1E88E5", "text": "#ffffff", "border": "#42A5F5", "label": "우수"},
-    "보통":   {"bg": "#FB8C00", "text": "#ffffff", "border": "#FFA726", "label": "보통"},
-    "관찰":   {"bg": "#E53935", "text": "#ffffff", "border": "#EF5350", "label": "관찰"},
+    "최우수": {"bg": "#1A3A20", "text": "#38B26B", "border": "#1E6B40", "label": "최우수"},
+    "우수":   {"bg": "#162030", "text": "#6FCFCF", "border": "#2A5060", "label": "우수"},
+    "보통":   {"bg": "#2A1A00", "text": "#F0C040", "border": "#B8922E", "label": "보통"},
+    "관찰":   {"bg": "#2A0A0A", "text": "#E03030", "border": "#9B2020", "label": "관찰"},
 }
 
 # Design: shared Plotly layout token
@@ -92,299 +92,329 @@ def _init_session_state() -> None:
 def _inject_css() -> None:
     st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
-/* Streamlit 기본 UI 제거 */
+/* ── Streamlit 기본 UI 제거 ── */
 #MainMenu { visibility: hidden; }
 [data-testid="stToolbar"] { display: none !important; }
 [data-testid="stHeader"] { display: none !important; height: 0 !important; min-height: 0 !important; }
 footer { visibility: hidden; }
 
+/* ── CSS Variables ── */
 :root {
-  --bg-card: rgba(255,255,255,0.06);
-  --bg-inset: rgba(0,0,0,0.08);
-  --border-subtle: rgba(128,128,128,0.18);
-  --text-muted: rgba(128,128,128,0.8);
-  --track-bg: rgba(128,128,128,0.15);
-  --accent: #2196F3;
+  --bg-root:    #0A0A0A;
+  --bg-panel:   #111111;
+  --bg-header:  #161616;
+  --border:     #2A2A2A;
+  --border-hi:  #3A3A3A;
+  --amber:      #F0C040;
+  --amber-dim:  #B8922E;
+  --amber-glow: rgba(240,192,64,0.10);
+  --red:        #E03030;
+  --green:      #38B26B;
+  --green-dim:  #1E6B40;
+  --cyan:       #6FCFCF;
+  --text-hi:    #E8E0CC;
+  --text-base:  #9A9278;
+  --text-dim:   #4A4438;
+  --text-label: #6A6050;
+  --mono:       'JetBrains Mono', monospace;
+  --sans:       'Noto Sans KR', sans-serif;
+  /* legacy compat */
+  --bg-card:      rgba(255,255,255,0.03);
+  --bg-inset:     rgba(0,0,0,0.15);
+  --border-subtle: #2A2A2A;
+  --text-muted:   #6A6050;
+  --track-bg:     #1A1A1A;
+  --accent:       #F0C040;
 }
 
-/* 전체 폰트 */
-.stApp, .stMarkdown, [data-testid="stMetricLabel"],
+/* ── Global ── */
+.stApp {
+  background: var(--bg-root) !important;
+  font-family: var(--mono) !important;
+}
+.stMarkdown, [data-testid="stMetricLabel"],
 [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
-  font-family: 'Noto Sans KR', sans-serif !important;
+  font-family: var(--mono) !important;
 }
 .stMarkdown p, .stMarkdown li {
+  font-family: var(--sans) !important;
   line-height: 1.5;
   word-break: keep-all;
   overflow-wrap: break-word;
+  color: var(--text-base);
+}
+h1, h2, h3 {
+  font-family: var(--mono) !important;
+  color: var(--text-hi) !important;
+  letter-spacing: 0.05em;
 }
 
-/* 탭 바 */
+/* ── 상단 여백 ── */
+.block-container,
+[data-testid="stMainBlockContainer"] {
+  padding-top: 1rem !important;
+  max-width: 100% !important;
+  background: var(--bg-root) !important;
+}
+
+/* ── 탭 바 — flat terminal style ── */
 .stTabs [data-baseweb="tab-list"] {
-  gap: 2px;
-  background: rgba(128,128,128,0.08);
-  padding: 4px 6px;
-  border-radius: 12px;
-  border: 1px solid var(--border-subtle);
+  gap: 0;
+  background: #000;
+  padding: 0 8px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
   flex-wrap: nowrap;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
 .stTabs [data-baseweb="tab"] {
-  border-radius: 8px;
-  padding: 5px 18px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: background 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  min-height: 44px;
+  border-radius: 0;
+  padding: 0 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  min-height: 36px;
   display: flex;
   align-items: center;
+  font-family: var(--mono) !important;
+  transition: color 0.1s;
 }
 .stTabs [aria-selected="true"] {
-  background: rgba(33,150,243,0.18) !important;
-  color: #64B5F6 !important;
+  background: transparent !important;
+  color: var(--amber) !important;
+  border-bottom: 2px solid var(--amber) !important;
   font-weight: 700;
 }
+.stTabs [data-baseweb="tab"]:hover {
+  color: var(--text-base) !important;
+}
 
-/* 메트릭 카드 */
+/* ── 메트릭 카드 ── */
 [data-testid="stMetric"] {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
   padding: 10px 14px !important;
 }
+[data-testid="stMetricLabel"] {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: var(--text-label) !important;
+}
+[data-testid="stMetricValue"] {
+  font-size: 1.4rem !important;
+  font-weight: 600 !important;
+  color: var(--amber) !important;
+  font-family: var(--mono) !important;
+}
+[data-testid="stMetricDelta"] svg { display: none; }
 
-/* 사이드바 */
+/* ── 사이드바 ── */
 section[data-testid="stSidebar"] {
-  background: rgba(10,10,20,0.3) !important;
-  border-right: 1px solid var(--border-subtle);
+  background: #050505 !important;
+  border-right: 1px solid var(--border) !important;
 }
 section[data-testid="stSidebar"] .stSelectbox label,
-section[data-testid="stSidebar"] .stRadio label {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* 버튼 — 최소 터치 44px */
-.stButton > button {
-  border-radius: 8px !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-  transition: opacity 0.15s !important;
-  min-height: 44px !important;
-}
-.stButton > button:hover { opacity: 0.85; }
-
-/* 데이터프레임 헤더 */
-[data-testid="stDataFrame"] th {
-  background: rgba(33,150,243,0.08) !important;
+section[data-testid="stSidebar"] .stRadio label,
+section[data-testid="stSidebar"] .stSlider label {
+  font-size: 0.68rem !important;
+  color: var(--text-label) !important;
   font-weight: 700 !important;
-  font-size: 0.875rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  font-family: var(--mono) !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+  background: #0A0A0A !important;
+  border: 1px solid var(--border-hi) !important;
+  border-radius: 2px !important;
+  color: var(--text-base) !important;
+  font-family: var(--mono) !important;
+  font-size: 0.8rem !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
+  border-color: var(--amber-dim) !important;
 }
 
-/* expander */
+/* ── 버튼 ── */
+.stButton > button {
+  border-radius: 2px !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-family: var(--mono) !important;
+  min-height: 36px !important;
+  border: 1px solid var(--border-hi) !important;
+  background: var(--bg-panel) !important;
+  color: var(--text-base) !important;
+  transition: border-color 0.1s, color 0.1s !important;
+}
+.stButton > button:hover {
+  border-color: var(--amber-dim) !important;
+  color: var(--amber) !important;
+}
+.stButton > button[kind="primary"] {
+  background: var(--amber) !important;
+  color: #000 !important;
+  border-color: var(--amber) !important;
+  font-weight: 700 !important;
+}
+
+/* ── 데이터프레임 ── */
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+}
+[data-testid="stDataFrame"] th {
+  background: var(--bg-header) !important;
+  font-weight: 700 !important;
+  font-size: 0.7rem !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-label) !important;
+  font-family: var(--mono) !important;
+  border-bottom: 2px solid var(--amber-dim) !important;
+}
+
+/* ── Expander ── */
 [data-testid="stExpander"] {
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 2px !important;
+  background: var(--bg-panel) !important;
+}
+[data-testid="stExpander"] summary {
+  font-family: var(--mono) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-base) !important;
 }
 
-/* 전역 상단 여백 축소 */
-.block-container,
-[data-testid="stMainBlockContainer"] {
-  padding-top: 1.5rem !important;
-  max-width: 100% !important;
+/* ── 입력 필드 ── */
+[data-testid="stTextInput"] input {
+  background: #0A0A0A !important;
+  border: 1px solid var(--border-hi) !important;
+  border-radius: 2px !important;
+  color: var(--text-hi) !important;
+  font-family: var(--mono) !important;
+  font-size: 0.8rem !important;
+}
+[data-testid="stTextInput"] input:focus {
+  border-color: var(--amber-dim) !important;
+  box-shadow: 0 0 0 1px var(--amber-dim) !important;
 }
 
-/* ── 모바일 카드 레이아웃 ─────────────────────────────────────────── */
-.ql-card-list  { display: none; }
-
-@media (max-width: 768px) {
-  .ql-card-list { display: block; }
-
-  /* 본문 패딩 최소화 */
-  .block-container,
-  [data-testid="stMainBlockContainer"] {
-    max-width: 100% !important;
-    padding-top: 0.75rem !important;
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
-  }
-
-  /* 사이드바 너비 */
-  section[data-testid="stSidebar"] {
-    width: 85vw !important;
-    min-width: 0 !important;
-  }
-
-  /* 탭 패딩 */
-  .stTabs [data-baseweb="tab"] {
-    padding: 5px 10px;
-    font-size: 0.8rem;
-  }
-
-  /* 사이드바 라벨 */
-  section[data-testid="stSidebar"] .stSelectbox label,
-  section[data-testid="stSidebar"] .stRadio label {
-    font-size: 0.875rem;
-  }
-
-  /* 메트릭 패딩 */
-  [data-testid="stMetric"] {
-    padding: 8px 10px !important;
-  }
-
-  /* 한국어 줄바꿈 허용 */
-  .stMarkdown p, .stMarkdown li {
-    word-break: break-word;
-  }
-
-  /* 섹터 강도 블록 숨김 (필터 우선 노출) */
-  .sidebar-sector-strength { display: none !important; }
-
-  /* 사이드바 브랜드 타이틀 숨김 (메인 헤더 중복) */
-  .sidebar-brand { display: none !important; }
+/* ── 다운로드 버튼 ── */
+[data-testid="stDownloadButton"] button {
+  border-radius: 2px !important;
+  font-family: var(--mono) !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  border: 1px solid var(--border-hi) !important;
+  background: var(--bg-panel) !important;
+  color: var(--text-base) !important;
 }
 
-@media (max-width: 480px) {
-  /* 다이얼로그 모바일 전체화면 */
-  div[data-testid="stDialog"] > div {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    padding: 0.75rem !important;
-  }
-  div[data-testid="stDialog"] {
-    padding: 0 !important;
-  }
-
-  /* 컬럼 수직 스택 (Tab3 차트, Dialog 내부 등) */
-  [data-testid="stHorizontalBlock"] {
-    flex-direction: column !important;
-  }
-  [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
-  [data-testid="stHorizontalBlock"] > div[class*="stColumn"] {
-    width: 100% !important;
-    flex: none !important;
-    min-width: 100% !important;
-  }
-
-  /* 탭 최소 크기 */
-  .stTabs [data-baseweb="tab"] {
-    padding: 5px 6px;
-    font-size: 0.75rem;
-  }
-
-  /* 극소 화면 줄바꿈 */
-  .stMarkdown p, .stMarkdown li {
-    word-break: break-all;
-    overflow-wrap: anywhere;
-  }
-
-  /* 종목명 tertiary 버튼 터치 타겟 */
-  div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
-    min-height: 44px !important;
-    padding: 10px 4px !important;
-    font-size: 0.875rem !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-  }
-}
-
-/* 모바일 카드 스타일 */
-.ql-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.ql-card-rank {
-  font-size: 0.75rem;
-  color: #666;
-  min-width: 22px;
-  text-align: center;
-}
-.ql-card-body { flex: 1; min-width: 0; }
-.ql-card-name {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #64B5F6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ql-card-sub {
-  font-size: 0.78rem;
-  color: #888;
-  margin-top: 3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.ql-card-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.ql-card-score {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #fff;
-}
-.ql-grade-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  padding: 3px 9px;
-  border-radius: 10px;
-  white-space: nowrap;
-}
-.ql-bull-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  background: #E65100;
-  padding: 2px 7px;
-  border-radius: 10px;
-  white-space: nowrap;
-}
-
-/* 섹터 강도 툴팁 */
+/* ── 섹터 강도 툴팁 ── */
 .ql-sector-row { position: relative; cursor: default; }
 .ql-sector-tooltip {
   display: none;
   position: absolute;
   left: 0; top: 100%;
   z-index: 9999;
-  background: #1a2236;
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 8px;
+  background: var(--bg-header);
+  border: 1px solid var(--border-hi);
+  border-radius: 2px;
   padding: 8px 12px;
   min-width: 200px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-family: var(--mono);
   white-space: nowrap;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.7);
   pointer-events: none;
 }
 .ql-sector-row:hover .ql-sector-tooltip { display: block; }
 .ql-tt-row { display: flex; justify-content: space-between; gap: 16px; padding: 2px 0; }
-.ql-tt-name { color: #ccc; }
+.ql-tt-name { color: var(--text-base); }
 .ql-tt-ret { font-weight: 700; }
+
+/* ── 모바일 카드 ── */
+.ql-card-list { display: none; }
+@media (max-width: 768px) {
+  .ql-card-list { display: block; }
+  .block-container, [data-testid="stMainBlockContainer"] {
+    padding-top: 0.5rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  section[data-testid="stSidebar"] { width: 85vw !important; min-width: 0 !important; }
+  .stTabs [data-baseweb="tab"] { padding: 0 8px; font-size: 0.65rem; }
+  [data-testid="stMetric"] { padding: 6px 8px !important; }
+  .sidebar-sector-strength { display: none !important; }
+  .sidebar-brand { display: none !important; }
+}
+@media (max-width: 480px) {
+  div[data-testid="stDialog"] > div {
+    width: 100vw !important; max-width: 100vw !important;
+    margin: 0 !important; border-radius: 0 !important;
+    padding: 0.75rem !important;
+  }
+  [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+  [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
+  [data-testid="stHorizontalBlock"] > div[class*="stColumn"] {
+    width: 100% !important; flex: none !important; min-width: 100% !important;
+  }
+  .stTabs [data-baseweb="tab"] { padding: 0 5px; font-size: 0.6rem; }
+  div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
+    min-height: 44px !important; padding: 10px 4px !important;
+    font-size: 0.875rem !important; white-space: normal !important;
+  }
+}
+
+.ql-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ql-card-rank { font-size: 0.7rem; color: var(--text-dim); min-width: 22px; text-align: center; }
+.ql-card-body { flex: 1; min-width: 0; }
+.ql-card-name {
+  font-size: 0.9rem; font-weight: 600; color: var(--amber);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--sans) !important;
+}
+.ql-card-sub { font-size: 0.72rem; color: var(--text-label); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.ql-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ql-card-score { font-size: 1.05rem; font-weight: 700; color: var(--text-hi); }
+.ql-grade-badge {
+  font-size: 0.65rem; font-weight: 700; color: #000;
+  padding: 1px 6px; border-radius: 1px; white-space: nowrap;
+  font-family: var(--mono) !important; letter-spacing: 0.06em;
+}
+.ql-bull-badge {
+  font-size: 0.65rem; font-weight: 700; color: var(--green);
+  background: rgba(56,178,107,0.15); border: 1px solid var(--green-dim);
+  padding: 1px 6px; border-radius: 1px; white-space: nowrap;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -444,8 +474,9 @@ def grade_badge_html(score: float, thresholds: tuple[float, float, float] = (60,
     cfg = GRADE_CONFIG[label]
     return (
         f'<span style="background:{cfg["bg"]};color:{cfg["text"]};'
-        f'border:1px solid {cfg["border"]};padding:4px 12px;border-radius:12px;'
-        f'font-size:0.875rem;font-weight:700;letter-spacing:0.04em;">{label}</span>'
+        f'border:1px solid {cfg["border"]};padding:4px 12px;border-radius:2px;'
+        f'font-size:0.75rem;font-weight:700;letter-spacing:0.08em;'
+        f'font-family:monospace;text-transform:uppercase;">{label}</span>'
     )
 
 
@@ -483,8 +514,8 @@ def radar_chart(
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
         r=vals, theta=cats, fill="toself",
-        fillcolor="rgba(33,150,243,0.2)",
-        line=dict(color="#2196F3", width=2),
+        fillcolor="rgba(240,192,64,0.12)",
+        line=dict(color="#F0C040", width=1.5),
         name=name,
     ))
 
@@ -492,8 +523,8 @@ def radar_chart(
         vals2 = [float(row2[a]) for a in AXES] + [float(row2[AXES[0]])]
         fig.add_trace(go.Scatterpolar(
             r=vals2, theta=cats, fill="toself",
-            fillcolor="rgba(244,67,54,0.15)",
-            line=dict(color="#F44336", width=2, dash="dash"),
+            fillcolor="rgba(224,48,48,0.15)",
+            line=dict(color="#E03030", width=1.5, dash="dash"),
             name=name2,
         ))
 
@@ -527,8 +558,8 @@ def score_bar(value: float, color: str, max_val: float = 100) -> str:
     return (
         f'<div role="progressbar" aria-valuenow="{value:.0f}" '
         f'aria-valuemin="0" aria-valuemax="{max_val:.0f}" aria-label="점수 {value:.0f}점" '
-        f'style="background:var(--track-bg,#e0e0e0);border-radius:6px;height:14px;width:100%;overflow:hidden;">'
-        f'<div style="background:{color};height:14px;border-radius:6px;'
+        f'style="background:#1A1A1A;border-radius:0;height:14px;width:100%;overflow:hidden;">'
+        f'<div style="background:{color};height:14px;border-radius:0;'
         f'width:{pct:.0f}%;transition:width 0.4s ease;'
         f'box-shadow:0 0 8px {color}55;"></div>'
         f'</div>'
@@ -672,11 +703,11 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
 
     fig.add_trace(go.Scatter(
         x=df.index, y=df["Close"], name="종가",
-        line=dict(color="#2196F3", width=2),
+        line=dict(color="#F0C040", width=2),
         hovertemplate="%{x|%Y-%m-%d}<br>종가: %{y:,.0f}원<extra></extra>",
     ), row=1, col=1)
 
-    for ma, color in [("MA20","#FF9800"), ("MA60","#9C27B0"), ("MA120","#F44336")]:
+    for ma, color in [("MA20","#F0C040"), ("MA60","#6FCFCF"), ("MA120","#E03030")]:
         fig.add_trace(go.Scatter(
             x=df.index, y=df[ma], name=ma,
             line=dict(color=color, width=1, dash="dot"),
@@ -763,23 +794,24 @@ def _show_company_overview(row: pd.Series, grade_thresholds: tuple) -> None:
 
     grade = investment_grade(total, grade_thresholds)
     cfg = GRADE_CONFIG[grade]
-    market_color = "#1E88E5" if market == "KOSPI" else "#7B1FA2"
+    market_color = "#4A90D9" if market == "KOSPI" else "#4ABF6A"
 
     st.markdown(
-        f"<div style='background:rgba(128,128,128,0.08);border-radius:12px;"
-        f"padding:16px 20px;margin-bottom:16px;border:1px solid rgba(128,128,128,0.15);'>"
+        f"<div style='background:rgba(255,255,255,0.03);border-radius:2px;"
+        f"padding:16px 20px;margin-bottom:16px;border:1px solid #2A2A2A;'>"
         f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;'>"
-        f"<span style='font-size:1.5rem;font-weight:800;'>{name}</span>"
-        f"<span style='color:#888;font-size:0.9rem;'>{code}</span>"
+        f"<span style='font-size:1.5rem;font-weight:800;color:#E8E0CC;'>{name}</span>"
+        f"<span style='color:#6A6050;font-size:0.9rem;'>{code}</span>"
         f"<span style='background:{cfg['bg']};color:{cfg['text']};padding:3px 12px;"
-        f"border-radius:12px;font-size:0.82rem;font-weight:700;'>{grade}</span>"
+        f"border:1px solid {cfg['border']};border-radius:2px;font-size:0.75rem;font-weight:700;"
+        f"font-family:monospace;text-transform:uppercase;letter-spacing:0.08em;'>{grade}</span>"
         f"</div>"
         f"<div style='display:flex;gap:12px;flex-wrap:wrap;align-items:center;'>"
         f"<span style='background:{market_color}33;color:{market_color};padding:3px 10px;"
-        f"border-radius:6px;font-weight:700;font-size:0.88rem;'>{market}</span>"
-        f"<span style='color:#ccc;font-size:0.9rem;'>📂 {sector}</span>"
-        f"<span style='color:#ccc;font-size:0.9rem;'>💰 {mc_str}</span>"
-        f"<span style='color:#888;font-size:0.82rem;'>데이터등급 {data_grade}</span>"
+        f"border-radius:2px;font-weight:700;font-size:0.88rem;'>{market}</span>"
+        f"<span style='color:#9A9278;font-size:0.9rem;'>📂 {sector}</span>"
+        f"<span style='color:#9A9278;font-size:0.9rem;'>💰 {mc_str}</span>"
+        f"<span style='color:#6A6050;font-size:0.82rem;'>데이터등급 {data_grade}</span>"
         f"</div>"
         f"</div>",
         unsafe_allow_html=True,
@@ -821,26 +853,28 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     _sec_ret = _sec_rets.get(sector)
     if _is_bull_pick and _sec_ret is not None:
         _sec_badge = (
-            f"<span style='background:#E65100;color:#fff;padding:2px 9px;"
-            f"border-radius:4px;font-size:0.82rem;margin-left:8px;font-weight:700;'>"
-            f"🔥 강세섹터 픽 {_sec_ret:+.1f}%</span>"
+            f"<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
+            f"border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;"
+            f"font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>"
+            f"강세섹터 픽 {_sec_ret:+.1f}%</span>"
         )
     elif _is_bull_pick:
         _sec_badge = (
-            "<span style='background:#E65100;color:#fff;padding:2px 9px;"
-            "border-radius:4px;font-size:0.82rem;margin-left:8px;font-weight:700;'>"
-            "🔥 강세섹터 픽</span>"
+            "<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
+            "border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;"
+            "font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>"
+            "강세섹터 픽</span>"
         )
     elif _is_bull and _sec_ret is not None:
         _sec_badge = (
-            f"<span style='background:#1B5E20;color:#A5D6A7;padding:2px 9px;"
-            f"border-radius:4px;font-size:0.82rem;margin-left:8px;'>"
+            f"<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
+            f"border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;'>"
             f"▲ 강세섹터 {_sec_ret:+.1f}%</span>"
         )
     elif _sec_ret is not None:
         _sec_badge = (
-            f"<span style='background:#37474F;color:#90A4AE;padding:2px 9px;"
-            f"border-radius:4px;font-size:0.82rem;margin-left:8px;'>"
+            f"<span style='background:#161616;color:#E03030;padding:2px 9px;"
+            f"border:1px solid #9B2020;border-radius:2px;font-size:0.75rem;margin-left:8px;'>"
             f"▽ 약세섹터 {_sec_ret:+.1f}%</span>"
         )
     else:
@@ -850,7 +884,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         f"<div style='display:flex;flex-direction:column;gap:4px;margin:6px 0 10px;'>"
         f"<div style='display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;'>"
         f"<span style='font-size:1.4rem;font-weight:800;'>{name}</span>"
-        f"<span style='color:#888;font-size:0.88rem;'>{code} · 유니버스 {rank_val}위</span>"
+        f"<span style='color:#6A6050;font-size:0.88rem;'>{code} · 유니버스 {rank_val}위</span>"
         f"</div>"
         f"<div>{_sec_badge}</div>"
         f"</div>",
@@ -864,7 +898,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     if _mc_raw is not None and pd.notna(_mc_raw):
         _mc = float(_mc_raw)
         _mc_str = f"{_mc / 1e12:.1f}조원" if _mc >= 1e12 else f"{_mc / 1e8:.0f}억원"
-    _market_color = "#1E88E5" if _market_val == "KOSPI" else "#7B1FA2"
+    _market_color = "#4A90D9" if _market_val == "KOSPI" else "#4ABF6A"
 
     _ci = _get_company_info(code, name)
     _industry  = _ci.get("industry", "") or sector
@@ -877,14 +911,14 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
 
     # 헤더: 시장·업종·시총 배지
     _mc_badge = (
-        f"<span style='color:#aaa;font-size:0.85rem;'>💰 {_mc_str}</span>"
+        f"<span style='color:#9A9278;font-size:0.85rem;'>💰 {_mc_str}</span>"
         if _mc_str else ""
     )
     st.markdown(
         f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;'>"
         f"<span style='background:{_market_color}33;color:{_market_color};padding:2px 9px;"
-        f"border-radius:5px;font-size:0.82rem;font-weight:700;'>{_market_val}</span>"
-        f"<span style='color:#ccc;font-size:0.88rem;'>📂 {sector}</span>"
+        f"border-radius:2px;font-size:0.82rem;font-weight:700;'>{_market_val}</span>"
+        f"<span style='color:#9A9278;font-size:0.88rem;'>📂 {sector}</span>"
         f"{_mc_badge}"
         f"</div>",
         unsafe_allow_html=True,
@@ -896,8 +930,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         if _main_prod else f"{_industry} 업종 영위 기업."
     )
     st.markdown(
-        f"<div style='background:rgba(128,128,128,0.10);border-radius:8px;"
-        f"padding:12px 14px;margin-bottom:10px;color:#ddd;font-size:0.88rem;line-height:1.6;'>"
+        f"<div style='background:rgba(0,0,0,0.15);border-radius:2px;"
+        f"padding:12px 14px;margin-bottom:10px;color:#9A9278;font-size:0.88rem;line-height:1.6;'>"
         f"{_desc}</div>",
         unsafe_allow_html=True,
     )
@@ -913,13 +947,13 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     ]
     _grid_html = (
         "<div style='display:grid;grid-template-columns:1fr 1fr;gap:1px;"
-        "background:rgba(128,128,128,0.15);border-radius:8px;overflow:hidden;margin-bottom:14px;'>"
+        "background:#2A2A2A;border-radius:0;overflow:hidden;margin-bottom:14px;'>"
     )
     for _lbl, _val in _grid_items:
         _grid_html += (
-            f"<div style='background:rgba(20,20,30,0.8);padding:10px 12px;'>"
-            f"<div style='color:#888;font-size:0.75rem;margin-bottom:3px;'>{_lbl}</div>"
-            f"<div style='color:#eee;font-size:0.88rem;font-weight:500;'>{_val}</div>"
+            f"<div style='background:#111111;padding:10px 12px;'>"
+            f"<div style='color:#6A6050;font-size:0.75rem;margin-bottom:3px;'>{_lbl}</div>"
+            f"<div style='color:#E8E0CC;font-size:0.88rem;font-weight:500;'>{_val}</div>"
             f"</div>"
         )
     _grid_html += "</div>"
@@ -1048,8 +1082,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
             for lbl, score, akey in weaknesses:
                 st.markdown(
                     f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
-                    f"margin:4px 0;background:rgba(244,67,54,0.07);border-radius:0 6px 6px 0;'>"
-                    f"<b>{lbl}</b> <span style='color:#F44336;font-weight:700;'>"
+                    f"margin:4px 0;background:rgba(224,48,48,0.07);border-radius:0 2px 2px 0;'>"
+                    f"<b>{lbl}</b> <span style='color:#E03030;font-weight:700;'>"
                     f"{score:.1f}점</span> — 유니버스 <b>{univ_ranks[akey]}위</b>/{len(df_univ)}위</div>",
                     unsafe_allow_html=True,
                 )
@@ -1065,8 +1099,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     summary_text = f" — {reasons['summary']}" if reasons.get("summary") else ""
     if reasons.get("total"):
         st.markdown(
-            f"<div style='padding:12px;background:rgba(33,150,243,0.12);border-radius:8px;"
-            f"border-left:4px solid #2196F3;margin-bottom:8px;color:inherit;'>"
+            f"<div style='padding:12px;background:rgba(240,192,64,0.08);border-radius:2px;"
+            f"border-left:4px solid #B8922E;margin-bottom:8px;color:inherit;'>"
             f"📌 {reasons['total']}{summary_text}</div>",
             unsafe_allow_html=True,
         )
@@ -1091,8 +1125,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         summary2 = f" — {reasons2['summary']}" if reasons2.get("summary") else ""
         if reasons2.get("total"):
             st.markdown(
-                f"<div style='padding:10px;background:rgba(244,67,54,0.10);border-radius:8px;"
-                f"border-left:4px solid #F44336;margin-bottom:8px;color:inherit;'>"
+                f"<div style='padding:10px;background:rgba(224,48,48,0.10);border-radius:2px;"
+                f"border-left:4px solid #E03030;margin-bottom:8px;color:inherit;'>"
                 f"📌 {reasons2['total']}{summary2}</div>",
                 unsafe_allow_html=True,
             )
@@ -1156,18 +1190,18 @@ def _render_analyst_section(code: str, name: str) -> None:
         neu_pct = consensus.neutral_count / total_ops * 100
         sell_pct = consensus.sell_count / total_ops * 100
         st.markdown(
-            f'<div style="display:flex;gap:4px;margin:8px 0;flex-wrap:wrap;">'
-            f'<div style="flex:{buy_pct:.0f};min-width:40px;background:#00C853;height:28px;'
-            f'border-radius:4px 0 0 4px;text-align:center;color:#003300;'
-            f'font-size:0.8125rem;line-height:28px;" title="매수 {consensus.buy_count}개">'
+            f'<div style="display:flex;gap:2px;margin:8px 0;flex-wrap:wrap;">'
+            f'<div style="flex:{buy_pct:.0f};min-width:40px;background:#38B26B;height:28px;'
+            f'border-radius:0;text-align:center;color:#000;'
+            f'font-size:0.75rem;line-height:28px;font-family:monospace;font-weight:700;" title="매수 {consensus.buy_count}개">'
             f'매수 {buy_pct:.0f}%</div>'
-            f'<div style="flex:{neu_pct:.0f};min-width:40px;background:#FB8C00;height:28px;'
-            f'text-align:center;color:#fff;font-size:0.8125rem;line-height:28px;" '
+            f'<div style="flex:{neu_pct:.0f};min-width:40px;background:#F0C040;height:28px;'
+            f'text-align:center;color:#000;font-size:0.75rem;line-height:28px;font-family:monospace;font-weight:700;" '
             f'title="중립 {consensus.neutral_count}개">'
             f'중립 {neu_pct:.0f}%</div>'
-            f'<div style="flex:{max(sell_pct,1):.0f};min-width:40px;background:#E53935;height:28px;'
-            f'border-radius:0 4px 4px 0;text-align:center;color:#fff;'
-            f'font-size:0.8125rem;line-height:28px;" title="매도 {consensus.sell_count}개">'
+            f'<div style="flex:{max(sell_pct,1):.0f};min-width:40px;background:#E03030;height:28px;'
+            f'border-radius:0;text-align:center;color:#fff;'
+            f'font-size:0.75rem;line-height:28px;font-family:monospace;font-weight:700;" title="매도 {consensus.sell_count}개">'
             f'매도 {sell_pct:.0f}%</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -1185,8 +1219,9 @@ def _render_analyst_section(code: str, name: str) -> None:
             for r in reports:
                 tp = r.get("target_price")
                 tp_badge = (
-                    f" <span style='background:#1565C0;color:#fff;padding:1px 7px;"
-                    f"border-radius:4px;font-size:0.82rem;margin-left:6px'>"
+                    f" <span style='background:#162030;color:#6FCFCF;padding:1px 7px;"
+                    f"border:1px solid #2A5060;border-radius:2px;font-size:0.75rem;"
+                    f"margin-left:6px;font-family:monospace;'>"
                     f"목표 {tp:,}원</span>"
                     if tp else ""
                 )
@@ -1202,8 +1237,9 @@ def _render_analyst_section(code: str, name: str) -> None:
 def _mobile_card_html(rank: int, name: str, sector: str,
                       total: float, grade: str, is_bull: bool) -> str:
     """모바일 카드 뷰 — CSS .ql-card-list 내부에서만 표시됨."""
-    _gc = {"최우수": "#00C853", "우수": "#1E88E5", "보통": "#FB8C00", "관찰": "#E53935"}.get(grade, "#888")
-    bull_badge = '<span class="ql-bull-badge">🔥 강세섹터</span>' if is_bull else ""
+    _gc = GRADE_CONFIG.get(grade, {"bg": "#2A2A2A", "text": "#9A9278", "border": "#3A3A3A"})
+    _gc_bg, _gc_text, _gc_border = _gc["bg"], _gc["text"], _gc["border"]
+    bull_badge = '<span class="ql-bull-badge">강세섹터</span>' if is_bull else ""
     return (
         f'<div class="ql-card">'
         f'<div class="ql-card-rank">{rank}</div>'
@@ -1213,7 +1249,7 @@ def _mobile_card_html(rank: int, name: str, sector: str,
         f'</div>'
         f'<div class="ql-card-right">'
         f'<span class="ql-card-score">{total:.1f}</span>'
-        f'<span class="ql-grade-badge" style="background:{_gc};">{grade}</span>'
+        f'<span class="ql-grade-badge" style="background:{_gc_bg};color:{_gc_text};border:1px solid {_gc_border};">{grade}</span>'
         f'</div>'
         f'</div>'
     )
@@ -1413,17 +1449,17 @@ def main() -> None:
           <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
             <span style="font-size:clamp(1.4rem,4vw,2.2rem);font-weight:800;letter-spacing:-0.03em;">
               QuantLab Screener</span>
-            <span style="font-size:0.875rem;color:#888;word-break:keep-all;">
+            <span style="font-size:0.875rem;color:#6A6050;word-break:keep-all;">
               KOSPI·KOSDAQ 시총 상위 100개 · 5축 스코어링</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span style="background:rgba(33,150,243,0.14);border:1px solid rgba(33,150,243,0.28);
-              padding:3px 11px;border-radius:20px;font-size:0.8rem;color:#64B5F6;font-weight:600;">
+            <span style="background:rgba(240,192,64,0.10);border:1px solid #B8922E;
+              padding:3px 11px;border-radius:2px;font-size:0.75rem;color:#F0C040;font-weight:600;font-family:monospace;">
               {len(fdf)}개 종목</span>
-            <span style="background:rgba(128,128,128,0.08);border:1px solid rgba(128,128,128,0.18);
-              padding:3px 11px;border-radius:20px;font-size:0.8rem;color:#aaa;">
+            <span style="background:#111111;border:1px solid #2A2A2A;
+              padding:3px 11px;border-radius:2px;font-size:0.75rem;color:#9A9278;font-family:monospace;">
               KOSPI {kospi_cnt} · KOSDAQ {kosdaq_cnt}</span>
-            <span style="font-size:0.8rem;color:#666;">📅 {_last_updated()}</span>
+            <span style="font-size:0.75rem;color:#6A6050;font-family:monospace;">📅 {_last_updated()}</span>
           </div>
         </div>""",
         unsafe_allow_html=True,
@@ -1439,18 +1475,18 @@ def main() -> None:
             f"<div style='display:flex;align-items:center;justify-content:space-between;"
             f"margin-bottom:8px;flex-wrap:wrap;gap:8px;'>"
             f"<span style='font-size:1.05rem;font-weight:700;'>종목 랭킹 "
-            f"<span style='color:#64B5F6;'>{len(fdf)}개</span></span>"
+            f"<span style='color:#F0C040;'>{len(fdf)}개</span></span>"
             f"<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;'>"
-            f"<span style='font-size:0.8rem;color:#888;'>등급 기준</span>"
-            f"<span style='background:#00C853;color:#003300;padding:4px 9px;border-radius:12px;"
-            f"font-size:0.8125rem;font-weight:700;'>최우수 ≥{t1:.0f}</span>"
-            f"<span style='background:#1E88E5;color:#fff;padding:4px 9px;border-radius:12px;"
-            f"font-size:0.8125rem;font-weight:700;'>우수 ≥{t2:.0f}</span>"
-            f"<span style='background:#FB8C00;color:#fff;padding:4px 9px;border-radius:12px;"
-            f"font-size:0.8125rem;font-weight:700;'>보통 ≥{t3:.0f}</span>"
-            f"<span style='background:#E53935;color:#fff;padding:4px 9px;border-radius:12px;"
-            f"font-size:0.8125rem;font-weight:700;'>관찰</span>"
-            f"<span style='font-size:0.75rem;color:#666;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
+            f"<span style='font-size:0.75rem;color:#6A6050;font-family:monospace;'>등급 기준</span>"
+            f"<span style='background:#1A3A20;color:#38B26B;border:1px solid #1E6B40;padding:3px 9px;border-radius:2px;"
+            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>최우수 ≥{t1:.0f}</span>"
+            f"<span style='background:#162030;color:#6FCFCF;border:1px solid #2A5060;padding:3px 9px;border-radius:2px;"
+            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>우수 ≥{t2:.0f}</span>"
+            f"<span style='background:#2A1A00;color:#F0C040;border:1px solid #B8922E;padding:3px 9px;border-radius:2px;"
+            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>보통 ≥{t3:.0f}</span>"
+            f"<span style='background:#2A0A0A;color:#E03030;border:1px solid #9B2020;padding:3px 9px;border-radius:2px;"
+            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>관찰</span>"
+            f"<span style='font-size:0.72rem;color:#4A4438;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
             f"</div></div>",
             unsafe_allow_html=True,
         )
@@ -1536,7 +1572,7 @@ def main() -> None:
 <style>
 /* 종목명 tertiary 버튼 — 텍스트 링크 스타일 */
 div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
-    color: #64B5F6 !important;
+    color: #F0C040 !important;
     padding: 2px 4px !important;
     font-size: 0.88rem !important;
     text-align: left !important;
@@ -1544,25 +1580,26 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     min-height: 44px !important;
+    font-family: 'Noto Sans KR', sans-serif !important;
 }
 div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
-    color: #42A5F5 !important;
+    color: #B8922E !important;
     text-decoration: underline !important;
 }
 </style>""", unsafe_allow_html=True)
 
             _hcols = st.columns(_GCOLS)
             for _hc, _hl in zip(_hcols, _GHEADS):
-                _hc.markdown(f"<span style='font-size:0.78rem;font-weight:700;color:#888;'>{_hl}</span>",
+                _hc.markdown(f"<span style='font-size:0.68rem;font-weight:700;color:#6A6050;font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;'>{_hl}</span>",
                              unsafe_allow_html=True)
-            st.markdown("<hr style='margin:3px 0;border-color:rgba(128,128,128,0.2);'>",
+            st.markdown("<hr style='margin:3px 0;border-color:#2A2A2A;'>",
                         unsafe_allow_html=True)
 
             # ── 종목 행 렌더링 (종목명 = tertiary 버튼) ──────────────────────
-            _grade_colors = {"최우수": "#00C853", "우수": "#1E88E5", "보통": "#FB8C00", "관찰": "#E53935"}
+            _grade_colors = {"최우수": "#38B26B", "우수": "#6FCFCF", "보통": "#F0C040", "관찰": "#E03030"}
             for _, _drow in display.iterrows():
                 _rc = st.columns(_GCOLS)
-                _rc[0].markdown(f"<span style='font-size:0.85rem;color:#aaa;'>{_drow['순위']}</span>",
+                _rc[0].markdown(f"<span style='font-size:0.85rem;color:#4A4438;font-family:monospace;'>{_drow['순위']}</span>",
                                 unsafe_allow_html=True)
                 _stock_name = str(_drow["종목"]).split("(")[0].strip()
                 _stock_code = str(_drow["code"])
@@ -1595,10 +1632,11 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     f"<span style='font-size:0.85rem;font-weight:700;'>{_total_v:.1f}</span>",
                     unsafe_allow_html=True)
                 _grade = str(_drow["등급"])
-                _gc = _grade_colors.get(_grade, "#888")
+                _gcfg = GRADE_CONFIG.get(_grade, {"bg": "#2A2A2A", "text": "#9A9278", "border": "#3A3A3A"})
+                _gcfg_bg, _gcfg_text, _gcfg_border = _gcfg["bg"], _gcfg["text"], _gcfg["border"]
                 _rc[10].markdown(
-                    f"<span style='background:{_gc};color:#fff;padding:4px 9px;"
-                    f"border-radius:10px;font-size:0.8125rem;font-weight:700;'>{_grade}</span>",
+                    f"<span style='background:{_gcfg_bg};color:{_gcfg_text};border:1px solid {_gcfg_border};padding:3px 7px;"
+                    f"border-radius:2px;font-size:0.72rem;font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>{_grade}</span>",
                     unsafe_allow_html=True)
 
             st.divider()
@@ -1723,7 +1761,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     fig_hist = px.histogram(
                         fdf, x="Total", nbins=15,
                         title="종합점수 분포",
-                        color_discrete_sequence=["#2196F3"],
+                        color_discrete_sequence=["#F0C040"],
                         labels={"Total": "종합점수", "count": "종목 수"},
                     )
                     fig_hist.update_layout(
@@ -1828,7 +1866,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                         mkt_avg.reset_index().melt(id_vars="market"),
                         x="variable", y="value", color="market",
                         barmode="group",
-                        color_discrete_map={"KOSPI": "#2196F3", "KOSDAQ": "#FF9800"},
+                        color_discrete_map={"KOSPI": "#4A90D9", "KOSDAQ": "#4ABF6A"},
                         title="KOSPI vs KOSDAQ 평균 점수",
                         labels={"variable": "", "value": "평균점수", "market": "시장"},
                     )
