@@ -168,3 +168,78 @@ def fetch_report_titles(code: str) -> list[dict]:
     except Exception as e:
         logger.warning("리포트 목록 조회 실패 [%s]: %s", code, e)
         return []
+
+
+def fetch_company_info(code: str, name: str = "") -> dict:
+    """KRX + WiseReport + Naver에서 기업 기본 정보 조회."""
+    result: dict = {
+        "eng_name": "",
+        "industry": "",
+        "main_product": "",
+        "listed_date": "",
+        "ceo": "",
+        "shares": None,
+    }
+
+    # 1. KRX 기업 목록에서 대표이사·상장일·업종·주요제품 파싱
+    if name:
+        try:
+            time.sleep(_REQUEST_DELAY)
+            url = (
+                "https://kind.krx.co.kr/corpgeneral/corpList.do"
+                f"?method=searchCorpList&currentPageSize=10&pageIndex=1"
+                f"&comAbbrv={name}&marketType="
+            )
+            resp = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+            if resp.ok:
+                soup_k = BeautifulSoup(resp.text, "html.parser")
+                table = soup_k.find("table")
+                if table:
+                    for tr in table.find_all("tr")[1:]:
+                        cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+                        # 순서: 회사명, 업종, 주요제품, 상장일, 결산월, 대표자명, 홈페이지, 지역
+                        if len(cells) >= 7:
+                            result["industry"] = cells[1]
+                            result["main_product"] = cells[2]
+                            result["listed_date"] = cells[3]
+                            result["ceo"] = cells[5].rstrip(".")
+                            break
+        except Exception as e:
+            logger.warning("KRX 기업정보 조회 실패 [%s]: %s", code, e)
+
+    # 2. WiseReport에서 영문 기업명 파싱
+    try:
+        time.sleep(_REQUEST_DELAY)
+        url = (
+            f"https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx"
+            f"?cmp_cd={code}&target=ov"
+        )
+        resp = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        if resp.ok:
+            matches = re.findall(
+                r"[A-Z][A-Za-z\s,\.&]+(?:Inc\.|Co\.|Ltd\.|Corp\.)[^\n<]{0,5}",
+                resp.text,
+            )
+            if matches:
+                result["eng_name"] = matches[0].strip()
+    except Exception as e:
+        logger.warning("WiseReport 영문명 조회 실패 [%s]: %s", code, e)
+
+    # 3. Naver coinfo에서 발행주식수 파싱
+    try:
+        time.sleep(_REQUEST_DELAY)
+        url = f"https://finance.naver.com/item/coinfo.naver?code={code}"
+        resp = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        if resp.ok:
+            soup_n = BeautifulSoup(resp.text, "html.parser")
+            for t in soup_n.find_all("table"):
+                txt = t.get_text("|", strip=True)
+                if "상장주식수" in txt:
+                    m = re.search(r"상장주식수\|([0-9,]+)", txt)
+                    if m:
+                        result["shares"] = int(m.group(1).replace(",", ""))
+                        break
+    except Exception as e:
+        logger.warning("Naver 발행주식수 조회 실패 [%s]: %s", code, e)
+
+    return result

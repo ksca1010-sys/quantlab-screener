@@ -13,7 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.explainer import explain_stock
-from src.analyst import fetch_consensus, fetch_current_price, fetch_report_titles
+from src.analyst import fetch_consensus, fetch_current_price, fetch_report_titles, fetch_company_info
 
 st.set_page_config(
     page_title="QuantLab Screener",
@@ -410,6 +410,14 @@ def load_data() -> pd.DataFrame:
     df.index = df.index + 1
     df.index.name = "rank"
     return df
+
+
+@st.cache_data(ttl=3600)
+def _get_company_info(code: str, name: str) -> dict:
+    try:
+        return fetch_company_info(code, name)
+    except Exception:
+        return {}
 
 
 def _last_updated() -> str:
@@ -849,44 +857,73 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         unsafe_allow_html=True,
     )
 
-    # 업종 + 간략 개요
+    # 기업 개요 카드 (Toss 스타일)
     _market_val = str(row.get("market", ""))
     _mc_raw = row.get("market_cap", None)
     _mc_str = ""
     if _mc_raw is not None and pd.notna(_mc_raw):
         _mc = float(_mc_raw)
         _mc_str = f"{_mc / 1e12:.1f}조원" if _mc >= 1e12 else f"{_mc / 1e8:.0f}억원"
-    _growth = float(row.get("Growth", 0))
-    _trend  = float(row.get("Trend", 0))
-    _risk   = float(row.get("Risk", 0))
-    _total  = float(row.get("Total", 0))
-    _g_word = "강한 성장세" if _growth >= 70 else "안정적 성장" if _growth >= 45 else "성장 둔화"
-    _t_word = "추세 우위" if _trend >= 65 else "중립 추세" if _trend >= 40 else "추세 약세"
-    _r_word = "저위험" if _risk >= 65 else "중위험" if _risk >= 40 else "고위험"
-    _mc_part = f" 시가총액 {_mc_str}," if _mc_str else ""
-    _overview = (
-        f"{_market_val} 상장 {sector} 업종.{_mc_part} "
-        f"{_g_word}({_growth:.0f}점) · {_t_word}({_trend:.0f}점) · {_r_word}({_risk:.0f}점). "
-        f"종합 {_total:.1f}점."
-    )
     _market_color = "#1E88E5" if _market_val == "KOSPI" else "#7B1FA2"
+
+    _ci = _get_company_info(code, name)
+    _industry  = _ci.get("industry", "") or sector
+    _main_prod = _ci.get("main_product", "")
+    _ceo       = _ci.get("ceo", "") or "—"
+    _listed    = _ci.get("listed_date", "") or "—"
+    _eng_name  = _ci.get("eng_name", "") or "—"
+    _shares    = _ci.get("shares", None)
+    _shares_str = f"{_shares:,}주" if _shares else "—"
+
+    # 헤더: 시장·업종·시총 배지
     _mc_badge = (
         f"<span style='color:#aaa;font-size:0.85rem;'>💰 {_mc_str}</span>"
         if _mc_str else ""
     )
     st.markdown(
-        f"<div style='margin:0 0 12px;padding:10px 14px;background:rgba(128,128,128,0.07);"
-        f"border-radius:8px;border-left:3px solid {_market_color};'>"
-        f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;'>"
+        f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;'>"
         f"<span style='background:{_market_color}33;color:{_market_color};padding:2px 9px;"
         f"border-radius:5px;font-size:0.82rem;font-weight:700;'>{_market_val}</span>"
-        f"<span style='color:#ccc;font-size:0.88rem;font-weight:600;'>📂 {sector}</span>"
+        f"<span style='color:#ccc;font-size:0.88rem;'>📂 {sector}</span>"
         f"{_mc_badge}"
-        f"</div>"
-        f"<div style='color:#bbb;font-size:0.85rem;line-height:1.5;'>{_overview}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
+
+    # 사업 개요 텍스트 박스
+    _desc = (
+        f"{_industry} 업종 영위 기업. 주요 사업: {_main_prod}"
+        if _main_prod else f"{_industry} 업종 영위 기업."
+    )
+    st.markdown(
+        f"<div style='background:rgba(128,128,128,0.10);border-radius:8px;"
+        f"padding:12px 14px;margin-bottom:10px;color:#ddd;font-size:0.88rem;line-height:1.6;'>"
+        f"{_desc}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 정보 그리드
+    _grid_items = [
+        ("시가총액",   _mc_str or "—"),
+        ("대표이사",   _ceo),
+        ("기업명(영문)", _eng_name),
+        ("상장일",     _listed),
+        ("발행주식수", _shares_str),
+        ("업종",       _industry),
+    ]
+    _grid_html = (
+        "<div style='display:grid;grid-template-columns:1fr 1fr;gap:1px;"
+        "background:rgba(128,128,128,0.15);border-radius:8px;overflow:hidden;margin-bottom:14px;'>"
+    )
+    for _lbl, _val in _grid_items:
+        _grid_html += (
+            f"<div style='background:rgba(20,20,30,0.8);padding:10px 12px;'>"
+            f"<div style='color:#888;font-size:0.75rem;margin-bottom:3px;'>{_lbl}</div>"
+            f"<div style='color:#eee;font-size:0.88rem;font-weight:500;'>{_val}</div>"
+            f"</div>"
+        )
+    _grid_html += "</div>"
+    st.markdown(_grid_html, unsafe_allow_html=True)
 
     # 관심목록 버튼
     wl = st.session_state.watchlist
@@ -1638,7 +1675,6 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 sel_row_t2 = sel_row_t2.copy()
                 sel_row_t2["rank"] = rank_map.get(sel_code_t2, 0)
 
-            _show_company_overview(sel_row_t2, grade_thresholds)
             _render_stock_detail(sel_row_t2, df, fdf, grade_thresholds, sector_info)
 
     # ── Tab 3: 분포 분석 ──────────────────────────────────────────────────────
