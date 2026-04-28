@@ -778,7 +778,7 @@ def _show_company_overview(row: pd.Series, grade_thresholds: tuple) -> None:
     )
 
 
-@st.dialog("종목 분析", width="large")
+@st.dialog("종목 분석", width="large")
 def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
                        grade_thresholds: tuple, sector_info: dict | None = None) -> None:
     """Tab1 행 클릭 시 모달 팝업."""
@@ -845,6 +845,45 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         f"<span style='color:#888;font-size:0.88rem;'>{code} · 유니버스 {rank_val}위</span>"
         f"</div>"
         f"<div>{_sec_badge}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 업종 + 간략 개요
+    _market_val = str(row.get("market", ""))
+    _mc_raw = row.get("market_cap", None)
+    _mc_str = ""
+    if _mc_raw is not None and pd.notna(_mc_raw):
+        _mc = float(_mc_raw)
+        _mc_str = f"{_mc / 1e12:.1f}조원" if _mc >= 1e12 else f"{_mc / 1e8:.0f}억원"
+    _growth = float(row.get("Growth", 0))
+    _trend  = float(row.get("Trend", 0))
+    _risk   = float(row.get("Risk", 0))
+    _total  = float(row.get("Total", 0))
+    _g_word = "강한 성장세" if _growth >= 70 else "안정적 성장" if _growth >= 45 else "성장 둔화"
+    _t_word = "추세 우위" if _trend >= 65 else "중립 추세" if _trend >= 40 else "추세 약세"
+    _r_word = "저위험" if _risk >= 65 else "중위험" if _risk >= 40 else "고위험"
+    _mc_part = f" 시가총액 {_mc_str}," if _mc_str else ""
+    _overview = (
+        f"{_market_val} 상장 {sector} 업종.{_mc_part} "
+        f"{_g_word}({_growth:.0f}점) · {_t_word}({_trend:.0f}점) · {_r_word}({_risk:.0f}점). "
+        f"종합 {_total:.1f}점."
+    )
+    _market_color = "#1E88E5" if _market_val == "KOSPI" else "#7B1FA2"
+    _mc_badge = (
+        f"<span style='color:#aaa;font-size:0.85rem;'>💰 {_mc_str}</span>"
+        if _mc_str else ""
+    )
+    st.markdown(
+        f"<div style='margin:0 0 12px;padding:10px 14px;background:rgba(128,128,128,0.07);"
+        f"border-radius:8px;border-left:3px solid {_market_color};'>"
+        f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;'>"
+        f"<span style='background:{_market_color}33;color:{_market_color};padding:2px 9px;"
+        f"border-radius:5px;font-size:0.82rem;font-weight:700;'>{_market_val}</span>"
+        f"<span style='color:#ccc;font-size:0.88rem;font-weight:600;'>📂 {sector}</span>"
+        f"{_mc_badge}"
+        f"</div>"
+        f"<div style='color:#bbb;font-size:0.85rem;line-height:1.5;'>{_overview}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
