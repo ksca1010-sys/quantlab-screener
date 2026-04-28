@@ -19,7 +19,7 @@ st.set_page_config(
     page_title="QuantLab Screener",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 CSV_PATH = Path(__file__).parent.parent / "output" / "stocks_top100.csv"
@@ -97,7 +97,9 @@ def _inject_css() -> None:
 /* ── Streamlit 기본 UI 제거 ── */
 #MainMenu { visibility: hidden; }
 [data-testid="stToolbar"] { display: none !important; }
-[data-testid="stHeader"] { display: none !important; height: 0 !important; min-height: 0 !important; }
+[data-testid="stHeader"] { background: transparent !important; height: auto !important; min-height: 0 !important; }
+[data-testid="stHeader"] > * { display: none !important; }
+[data-testid="collapsedControl"] { display: flex !important; background: #0A0A0A !important; border-right: 1px solid #2A2A2A !important; }
 footer { visibility: hidden; }
 
 /* ── CSS Variables ── */
