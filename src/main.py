@@ -104,14 +104,20 @@ def _enrich_from_dart(market_data: pd.DataFrame, financials: dict[str, pd.DataFr
     def _val(df: pd.DataFrame, id_pat: str, nm_pat: str, divs: tuple) -> float:
         sub = df[df["sj_div"].isin(divs)] if "sj_div" in df.columns else df
         if "account_id" in sub.columns:
-            rows = sub[sub["account_id"].str.contains(id_pat, na=False, case=False)]
+            # _pat 단어경계 우선: EquityAndLiabilities·InvestmentAccountedForUsingEquityMethod 등 false-positive 방지
+            rows = sub[sub["account_id"].str.endswith(f"_{id_pat}", na=False)]
+            if rows.empty:
+                rows = sub[sub["account_id"].str.contains(id_pat, na=False, case=False)]
             if not rows.empty:
                 try:
                     return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
                 except Exception:
                     pass
         if "account_nm" in sub.columns:
-            rows = sub[sub["account_nm"].str.contains(nm_pat, na=False)]
+            # 완전 일치 우선: 자본총계 contains가 부채와자본총계까지 매칭하는 문제 방지
+            rows = sub[sub["account_nm"] == nm_pat]
+            if rows.empty:
+                rows = sub[sub["account_nm"].str.contains(nm_pat, na=False)]
             if not rows.empty:
                 try:
                     return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
