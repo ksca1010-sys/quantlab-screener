@@ -8,11 +8,19 @@ import time
 from datetime import date, timedelta
 from functools import lru_cache
 
-import FinanceDataReader as fdr
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from pykrx import stock as krx
+
+try:
+    import FinanceDataReader as fdr
+except ImportError:
+    fdr = None  # Streamlit Cloud: 주가 차트 비활성화
+
+try:
+    from pykrx import stock as krx
+except ImportError:
+    krx = None  # Streamlit Cloud: 시총 조회 비활성화
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +113,8 @@ def get_price_data(code: str, start: str, end: str) -> pd.DataFrame:
     FinanceDataReader로 일봉 OHLCV 조회.
     Returns: DataFrame with columns [Open, High, Low, Close, Volume]
     """
+    if fdr is None:
+        return pd.DataFrame()
     try:
         df = fdr.DataReader(code, start, end)
         if df is None or df.empty:
@@ -177,6 +187,8 @@ def get_financial_data(code: str, as_of_date: str) -> pd.DataFrame:
 @lru_cache(maxsize=512)
 def get_market_cap(code: str, date_str: str) -> float:
     """pykrx로 특정 날짜 시총 조회 (원 단위)."""
+    if krx is None:
+        return float("nan")
     try:
         df = krx.get_market_cap_by_ticker(date_str.replace("-", ""))
         if code in df.index:

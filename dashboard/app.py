@@ -435,8 +435,8 @@ def load_data() -> pd.DataFrame:
 
     for col in AXES + ["Total"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    # Korean stock codes have leading zeros (005930); keep as str
-    df["code"] = df["code"].astype(str)
+    # Korean stock codes have leading zeros (005930); zfill(6) restores them after int64 parsing
+    df["code"] = df["code"].astype(str).str.zfill(6)
 
     df = df.reset_index(drop=True)
     df.index = df.index + 1
@@ -636,7 +636,7 @@ def _get_current_price(code: str):
 def _get_price_history(code: str) -> pd.DataFrame:
     from src.data_loader import get_price_data
     end   = pd.Timestamp.today().strftime("%Y-%m-%d")
-    start = (pd.Timestamp.today() - pd.DateOffset(years=1)).strftime("%Y-%m-%d")
+    start = (pd.Timestamp.today() - pd.DateOffset(days=380)).strftime("%Y-%m-%d")
     return get_price_data(code, start, end)
 
 
@@ -683,7 +683,7 @@ def _compute_sector_strength(sector_nc_frozen: tuple) -> dict:
 
 
 def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
-    """1년 주가 라인차트 + MA20/60/120 + 52주 고저 + 거래량."""
+    """1년 주가 라인차트 + MA20/60/120 + 52주 고저 + 거래량 + 추세 특이사항 마커."""
     if price_df.empty or "Close" not in price_df.columns:
         return None
     if not isinstance(price_df.index, pd.DatetimeIndex):
@@ -696,26 +696,64 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
     w52_high = float(df["Close"].max())
     w52_low  = float(df["Close"].min())
 
+    # ── Trend 지표 계산 ──────────────────────────────────────────────
+    last_ma20  = float(df["MA20"].dropna().iloc[-1])  if df["MA20"].notna().any() else None
+    last_ma60  = float(df["MA60"].dropna().iloc[-1])  if df["MA60"].notna().any() else None
+    last_ma120 = float(df["MA120"].dropna().iloc[-1]) if df["MA120"].notna().any() else None
+    is_aligned = (
+        last_ma20 is not None and last_ma60 is not None and last_ma120 is not None
+        and last_ma20 > last_ma60 > last_ma120
+    )
+    gap_short = (last_ma20 / last_ma60 - 1) * 100 if (last_ma20 is not None and last_ma60 is not None and last_ma60 != 0) else 0.0
+    gap_long  = (last_ma60 / last_ma120 - 1) * 100 if (last_ma60 is not None and last_ma120 is not None and last_ma120 != 0) else 0.0
+
+    # 52주 위치
+    w52_pos = (float(df["Close"].iloc[-1]) / w52_high * 100) if w52_high > 0 else 0.0
+
+    # 황금교차 / 데드교차
+    gc_mask = (df["MA20"] > df["MA60"]) & (df["MA20"].shift(1) <= df["MA60"].shift(1))
+    dc_mask = (df["MA20"] < df["MA60"]) & (df["MA20"].shift(1) >= df["MA60"].shift(1))
+    gc_df = df[gc_mask.fillna(False)]
+    dc_df = df[dc_mask.fillna(False)]
+
     has_vol = "Volume" in df.columns and df["Volume"].sum() > 0
+
+    # 거래량 추세
+    vol_ratio: float | None = None
+    if has_vol and len(df) >= 80:
+        avg20 = float(df["Volume"].iloc[-20:].mean())
+        avg60 = float(df["Volume"].iloc[-80:-20].mean())
+        vol_ratio = avg20 / avg60 if avg60 > 0 else None
+
+    # 12-1개월 모멘텀
+    momentum: float | None = None
+    if len(df) >= 252:
+        p_start = float(df["Close"].iloc[-252])
+        p_end   = float(df["Close"].iloc[-21])
+        if p_start > 0:
+            momentum = (p_end - p_start) / p_start * 100
+
     rows    = 2 if has_vol else 1
     heights = [0.72, 0.28] if has_vol else [1.0]
 
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True,
                         row_heights=heights, vertical_spacing=0.03)
 
+    # ── 종가 + MA ─────────────────────────────────────────────────────
     fig.add_trace(go.Scatter(
         x=df.index, y=df["Close"], name="종가",
         line=dict(color="#F0C040", width=2),
         hovertemplate="%{x|%Y-%m-%d}<br>종가: %{y:,.0f}원<extra></extra>",
     ), row=1, col=1)
 
-    for ma, color in [("MA20","#F0C040"), ("MA60","#6FCFCF"), ("MA120","#E03030")]:
+    for ma, color in [("MA20", "#FF8C00"), ("MA60", "#6FCFCF"), ("MA120", "#E03030")]:
         fig.add_trace(go.Scatter(
             x=df.index, y=df[ma], name=ma,
             line=dict(color=color, width=1, dash="dot"),
             hovertemplate=f"{ma}: %{{y:,.0f}}원<extra></extra>",
         ), row=1, col=1)
 
+    # ── 52주 고저 ────────────────────────────────────────────────────
     fig.add_hline(y=w52_high, line_dash="dash", line_color="rgba(0,200,83,0.55)",
                   annotation_text=f"52H {w52_high:,.0f}",
                   annotation_position="top left", row=1, col=1)
@@ -723,9 +761,28 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
                   annotation_text=f"52L {w52_low:,.0f}",
                   annotation_position="bottom left", row=1, col=1)
 
+    # ── 황금교차 / 데드교차 마커 ─────────────────────────────────────────
+    if not gc_df.empty:
+        fig.add_trace(go.Scatter(
+            x=gc_df.index, y=gc_df["MA20"],
+            mode="markers", name="황금교차",
+            marker=dict(symbol="triangle-up", size=12, color="#38B26B",
+                        line=dict(color="#E8E0CC", width=1)),
+            hovertemplate="🟢 황금교차<br>%{x|%Y-%m-%d}<extra></extra>",
+        ), row=1, col=1)
+    if not dc_df.empty:
+        fig.add_trace(go.Scatter(
+            x=dc_df.index, y=dc_df["MA20"],
+            mode="markers", name="데드교차",
+            marker=dict(symbol="triangle-down", size=12, color="#E03030",
+                        line=dict(color="#E8E0CC", width=1)),
+            hovertemplate="🔴 데드교차<br>%{x|%Y-%m-%d}<extra></extra>",
+        ), row=1, col=1)
+
+    # ── 거래량 + 거래량 MA20 + 급증 마커 ─────────────────────────────────
     if has_vol:
         closes = df["Close"].values
-        vcol = ["#ef5350" if i > 0 and closes[i] < closes[i-1] else "#26a69a"
+        vcol = ["#ef5350" if i > 0 and closes[i] < closes[i - 1] else "#26a69a"
                 for i in range(len(closes))]
         fig.add_trace(go.Bar(
             x=df.index, y=df["Volume"], name="거래량",
@@ -733,15 +790,63 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
             hovertemplate="거래량: %{y:,.0f}<extra></extra>",
         ), row=2, col=1)
 
+        df["VolMA20"] = df["Volume"].rolling(20).mean()
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df["VolMA20"], name="거래량MA20",
+            line=dict(color="#F0C040", width=1, dash="dot"),
+            showlegend=False,
+            hovertemplate="거래량MA20: %{y:,.0f}<extra></extra>",
+        ), row=2, col=1)
+
+        # 거래량 급증 마커 (MA20 대비 2배 초과)
+        surge_mask = df["Volume"] > df["VolMA20"] * 2
+        surge_df   = df[surge_mask.fillna(False)]
+        if not surge_df.empty:
+            fig.add_trace(go.Scatter(
+                x=surge_df.index, y=surge_df["Volume"],
+                mode="markers", name="거래량급증",
+                marker=dict(symbol="circle", size=7, color="#F0C040",
+                            line=dict(color="#0A0A0A", width=1)),
+                showlegend=False,
+                hovertemplate="⚡ 거래량급증<br>%{x|%Y-%m-%d}<br>%{y:,.0f}<extra></extra>",
+            ), row=2, col=1)
+
+    # ── 모멘텀 측정 구간 음영 ─────────────────────────────────────────────
+    if len(df) >= 252:
+        fig.add_shape(
+            type="rect",
+            x0=df.index[-252], x1=df.index[-21],
+            y0=0, y1=1, yref="y domain",
+            fillcolor="rgba(240,192,64,0.10)", line_width=0,
+            row=1, col=1,
+        )
+
+    # ── 하단 상태 요약 ────────────────────────────────────────────────
+    align_label = f"{'▲ 정배열' if is_aligned else '▽ 역배열'} (단{gap_short:+.1f}%/장{gap_long:+.1f}%)"
+    parts = [
+        align_label,
+        f"52주위치 {w52_pos:.0f}%",
+        *([] if vol_ratio is None else [f"거래량추세 {vol_ratio:.2f}배"]),
+        *([] if momentum is None else [f"12-1개월 모멘텀 {momentum:+.1f}%"]),
+    ]
+    status_text = "  |  ".join(parts)
+
     fig.update_layout(
-        title=dict(text=f"<b>{name}</b> — 1년 주가 (MA20·60·120)", font=dict(size=12)),
+        title=dict(text=f"<b>{name}</b> — 1년 주가 / 추세 지표", font=dict(size=12)),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Noto Sans KR, sans-serif", size=10),
-        margin=dict(l=52, r=8, t=38, b=14), height=360,
+        font=dict(family="Noto Sans KR, sans-serif", size=10, color="#E8E0CC"),
+        margin=dict(l=52, r=8, t=38, b=64), height=520,
         showlegend=True,
-        legend=dict(orientation="h", y=1.06, x=0, font=dict(size=9)),
+        legend=dict(orientation="h", y=1.12, x=0, font=dict(size=9)),
         xaxis=dict(gridcolor="rgba(128,128,128,0.1)", rangeslider=dict(visible=False)),
         yaxis=dict(gridcolor="rgba(128,128,128,0.1)", tickformat=",.0f", title="원"),
+    )
+    fig.add_annotation(
+        text=status_text,
+        xref="paper", yref="paper",
+        x=0, y=-0.10, showarrow=False,
+        font=dict(size=9, color="#9A9278"),
+        align="left",
     )
     if has_vol:
         fig.update_xaxes(gridcolor="rgba(128,128,128,0.1)", row=2, col=1)
@@ -973,14 +1078,16 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
             st.rerun()
 
     # 주가 차트
-    with st.spinner("주가 데이터 로딩 중..."):
-        try:
-            price_df = _get_price_history(code)
-            fig_p = _price_chart(price_df, name)
-            if fig_p:
-                st.plotly_chart(fig_p, use_container_width=True)
-        except Exception as _pe:
-            st.warning(f"주가 차트 오류: {_pe}")
+    try:
+        price_df = _get_price_history(code)
+        fig_p = _price_chart(price_df, name)
+        if fig_p is not None:
+            st.plotly_chart(fig_p, use_container_width=True, theme=None,
+                            key=f"price_chart_{code}")
+        else:
+            st.caption("주가 데이터를 불러올 수 없습니다.")
+    except Exception as _pe:
+        st.warning(f"주가 차트 오류: {_pe}")
 
     # 레이더 + 5축 점수
     compare_options = ["없음"] + [o for o in options if f"({code})" not in o]
