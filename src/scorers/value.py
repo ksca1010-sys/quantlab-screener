@@ -30,15 +30,16 @@ def score_value(
     s3 = _peg_score(df)       # 0~25
     s4 = _dividend_score(df)  # 0~15
 
-    # PEG 커버리지 < 30% 시: PEG 0점 처리하고 나머지에 비례 재배분 (PER 40 + PBR 40 + Div 20)
+    # PEG 커버리지 < 50% 시: PEG 0점 처리하고 나머지에 비례 재배분 (PER 40 + PBR 40 + Div 20)
     # 이유: PEG 데이터 없는 종목에 0점을 부여하면 섹터 내 순위를 왜곡함 (헌법 위반)
+    # 50%: 절반 미만 커버리지면 이미 통계적 신뢰성 없음 → 즉시 재배분
     if "peg" in df.columns:
         peg_valid = pd.to_numeric(df["peg"], errors="coerce")
         peg_coverage = (peg_valid > 0).sum() / max(len(df), 1)
     else:
         peg_coverage = 0.0
 
-    if peg_coverage < 0.30:
+    if peg_coverage < 0.50:
         logger.debug("PEG 커버리지 %.0f%% < 30%% → 재배분 (PER 40 + PBR 40 + Div 20)", peg_coverage * 100)
         s1 = s1 * (40 / 30)
         s2 = s2 * (40 / 30)
@@ -78,17 +79,26 @@ def _pbr_score(df: pd.DataFrame) -> pd.Series:
 
 
 def _peg_score(df: pd.DataFrame) -> pd.Series:
-    """PEG 1 이하 만점, 이상 감점 → 0~25점."""
+    """PEG 섹터 분위수 → 0~25점 (낮을수록 유리). 섹터 없으면 절대값 폴백.
+    섹터 분위수 전환 이유: 성장 섹터(IT·바이오)는 구조적으로 PEG가 높아
+    절대 임계값(PEG<1=만점) 방식은 가치 섹터에 일방적으로 유리함.
+    """
     if "peg" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    peg = pd.to_numeric(df["peg"], errors="coerce")
+    work = df.copy()
+    work["peg"] = pd.to_numeric(work["peg"], errors="coerce")
+    valid = work[work["peg"] > 0]
+    if valid.empty:
+        return pd.Series(0.0, index=df.index)
+    if "sector" in work.columns:
+        pct = sector_percentile(valid, "peg", ascending=False)  # 낮은 PEG → 높은 분위수
+        return (pct.reindex(df.index).fillna(0) * 25).rename(None)
+    # 섹터 정보 없을 때 기존 절대값 방식 폴백
+    peg = work["peg"]
     score = pd.Series(0.0, index=df.index)
-    score[peg <= 0] = 0.0
-    mask_good = (peg > 0) & (peg <= 1)
-    score[mask_good] = 25.0
+    score[(peg > 0) & (peg <= 1)] = 25.0
     mask_mid = (peg > 1) & (peg <= 3)
     score[mask_mid] = 25.0 * (3 - peg[mask_mid]) / 2
-    score[peg > 3] = 0.0
     return score.fillna(0.0)
 
 

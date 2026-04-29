@@ -7,7 +7,7 @@ import logging
 
 import pandas as pd
 
-from src.normalizer import clip_score, minmax_scale
+from src.normalizer import clip_score, minmax_scale, sector_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +19,11 @@ def score_quality(
 ) -> pd.Series:
     """
     Quality 최종 점수 (0~100).
+    universe: code, sector 컬럼 포함
     market_data: code, roe, operating_margin, debt_ratio, interest_coverage 컬럼
+    ROE·영업이익률은 섹터 분위수 정규화 (절댓값 비교 금지 — CLAUDE.md 헌법)
     """
-    df = universe[["code"]].copy()
+    df = universe[["code", "sector"]].copy() if "sector" in universe.columns else universe[["code"]].copy()
     df = df.merge(market_data, on="code", how="left")
 
     s1 = _roe_score(df)               # 0~30
@@ -36,19 +38,27 @@ def score_quality(
 
 
 def _roe_score(df: pd.DataFrame) -> pd.Series:
-    """ROE (%) 높을수록 좋음 → 0~30점. NaN은 스케일링 후 0점 (허수 금지)."""
+    """ROE (%) 섹터 분위수 → 0~30점. 섹터 없으면 전체 minmax 폴백. NaN → 0점."""
     if "roe" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    roe = pd.to_numeric(df["roe"], errors="coerce").clip(-50, 100)
-    return minmax_scale(roe, lower=0, upper=30).fillna(0).rename(None)
+    work = df.copy()
+    work["roe"] = pd.to_numeric(work["roe"], errors="coerce").clip(-50, 100)
+    if "sector" in work.columns:
+        pct = sector_percentile(work, "roe", ascending=True)
+        return (pct.reindex(df.index).fillna(0) * 30).rename(None)
+    return minmax_scale(work["roe"], lower=0, upper=30).fillna(0).rename(None)
 
 
 def _op_margin_score(df: pd.DataFrame) -> pd.Series:
-    """영업이익률 (%) 높을수록 좋음 → 0~25점. NaN은 스케일링 후 0점."""
+    """영업이익률 (%) 섹터 분위수 → 0~25점. 섹터 없으면 전체 minmax 폴백. NaN → 0점."""
     if "operating_margin" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    margin = pd.to_numeric(df["operating_margin"], errors="coerce").clip(-50, 80)
-    return minmax_scale(margin, lower=0, upper=25).fillna(0).rename(None)
+    work = df.copy()
+    work["operating_margin"] = pd.to_numeric(work["operating_margin"], errors="coerce").clip(-50, 80)
+    if "sector" in work.columns:
+        pct = sector_percentile(work, "operating_margin", ascending=True)
+        return (pct.reindex(df.index).fillna(0) * 25).rename(None)
+    return minmax_scale(work["operating_margin"], lower=0, upper=25).fillna(0).rename(None)
 
 
 def _debt_ratio_score(df: pd.DataFrame) -> pd.Series:

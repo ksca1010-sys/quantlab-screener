@@ -63,6 +63,28 @@ def _get_sector_map_pykrx(ref_date: str) -> dict[str, str]:
     return sector_map
 
 
+_ETF_NAME_PREFIXES = (
+    "KODEX", "TIGER", "KBSTAR", "KOSEF", "ARIRANG", "HANARO", "SOL",
+    "KINDEX", "ACE", "RISE", "PLUS", "TIMEFOLIO", "KTOP", "FOCUS",
+)
+_EXCLUDE_NAME_KEYWORDS = ("스팩", "리츠", "SPAC", "REIT", "인프라펀드")
+
+
+def _is_investable(name: str, code: str) -> bool:
+    """ETF·스팩·리츠·우선주를 제외한 보통주 여부 판별."""
+    n = str(name).strip()
+    # ETF: 대형 운용사 접두사
+    if n.upper().startswith(_ETF_NAME_PREFIXES):
+        return False
+    # 스팩·리츠·인프라펀드
+    if any(kw in n for kw in _EXCLUDE_NAME_KEYWORDS):
+        return False
+    # 우선주: 이름이 '우', '우B', '우C', '우D' 등으로 끝남
+    if n.endswith(("우", "우B", "우C", "우D", "1우B", "2우B")):
+        return False
+    return True
+
+
 def build_universe(
     as_of_date: str | None = None,
     kospi_top: int = 200,
@@ -85,6 +107,12 @@ def build_universe(
 
     listing["market_cap"] = pd.to_numeric(listing["market_cap"], errors="coerce").fillna(0.0)
     listing = listing[listing["market_cap"] > 0]
+
+    # ETF·스팩·리츠·우선주 제외 — 재무 데이터 없어 스코어 왜곡 방지
+    before = len(listing)
+    listing = listing[listing.apply(lambda r: _is_investable(r["name"], r["code"]), axis=1)]
+    logger.info("비투자 종목 제외: %d개 → %d개 (ETF·스팩·우선주 등 %d개 제거)",
+                before, len(listing), before - len(listing))
 
     # 섹터: fdr Dept 컬럼 우선, 없으면 pykrx 시도, 최종 fallback '기타'
     if "sector_raw" in listing.columns and listing["sector_raw"].notna().any():

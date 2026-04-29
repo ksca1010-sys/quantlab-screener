@@ -112,7 +112,7 @@ def run_price_ic_backtest(
 
     records = []
     for q_date in quarter_dates:
-        q_start_1y = (pd.Timestamp(q_date) - pd.DateOffset(years=1)).strftime("%Y-%m-%d")
+        q_start_1y = (pd.Timestamp(q_date) - pd.DateOffset(days=380)).strftime("%Y-%m-%d")
 
         # 해당 기준일 이전 1년치 데이터로 슬라이싱
         def _slice(code: str) -> pd.DataFrame:

@@ -201,7 +201,7 @@ def _build_price_data(
     """FinanceDataReader로 가격 데이터 수집 (1년치). KOSPI 지수(KS11) 포함."""
     from src.data_loader import get_price_data
 
-    start = (pd.Timestamp(as_of_date) - pd.DateOffset(years=1)).strftime("%Y-%m-%d")
+    start = (pd.Timestamp(as_of_date) - pd.DateOffset(days=380)).strftime("%Y-%m-%d")
     result: dict[str, pd.DataFrame] = {}
 
     # KOSPI 지수 — Risk 축 베타 계산용

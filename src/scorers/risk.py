@@ -45,7 +45,7 @@ def _beta_score(
 ) -> pd.Series:
     """시장 베타 (52주, vs KOSPI) → 0~30점. 베타 낮을수록 높은 점수."""
     if kospi.empty or "Close" not in kospi.columns:
-        return pd.Series(0.0, index=range(len(codes)))
+        return pd.Series(0.0, index=codes)
 
     mkt_ret = kospi["Close"].pct_change().dropna()
 
