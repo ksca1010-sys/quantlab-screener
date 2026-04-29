@@ -44,8 +44,7 @@ def _roe_score(df: pd.DataFrame) -> pd.Series:
     work = df.copy()
     work["roe"] = pd.to_numeric(work["roe"], errors="coerce").clip(-50, 100)
     if "sector" in work.columns:
-        pct = sector_percentile(work, "roe", ascending=True)
-        return (pct.reindex(df.index).fillna(0) * 30).rename(None)
+        return (sector_percentile(work, "roe", ascending=True).fillna(0) * 30).rename(None)
     return minmax_scale(work["roe"], lower=0, upper=30).fillna(0).rename(None)
 
 
@@ -56,8 +55,7 @@ def _op_margin_score(df: pd.DataFrame) -> pd.Series:
     work = df.copy()
     work["operating_margin"] = pd.to_numeric(work["operating_margin"], errors="coerce").clip(-50, 80)
     if "sector" in work.columns:
-        pct = sector_percentile(work, "operating_margin", ascending=True)
-        return (pct.reindex(df.index).fillna(0) * 25).rename(None)
+        return (sector_percentile(work, "operating_margin", ascending=True).fillna(0) * 25).rename(None)
     return minmax_scale(work["operating_margin"], lower=0, upper=25).fillna(0).rename(None)
 
 

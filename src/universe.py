@@ -80,7 +80,7 @@ def _is_investable(name: str, code: str) -> bool:
     if any(kw in n for kw in _EXCLUDE_NAME_KEYWORDS):
         return False
     # 우선주: 이름이 '우', '우B', '우C', '우D' 등으로 끝남
-    if n.endswith(("우", "우B", "우C", "우D", "1우B", "2우B")):
+    if n.endswith(("우", "우B", "우C", "우D")):
         return False
     return True
 

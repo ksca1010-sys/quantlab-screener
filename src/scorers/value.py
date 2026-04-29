@@ -40,7 +40,7 @@ def score_value(
         peg_coverage = 0.0
 
     if peg_coverage < 0.50:
-        logger.debug("PEG 커버리지 %.0f%% < 30%% → 재배분 (PER 40 + PBR 40 + Div 20)", peg_coverage * 100)
+        logger.debug("PEG 커버리지 %.0f%% < 50%% → 재배분 (PER 40 + PBR 40 + Div 20)", peg_coverage * 100)
         s1 = s1 * (40 / 30)
         s2 = s2 * (40 / 30)
         s4 = s4 * (20 / 15)
