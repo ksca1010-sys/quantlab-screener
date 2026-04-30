@@ -27,12 +27,16 @@ def aggregate(
     df["Trend"]   = pd.to_numeric(trend.reindex(df.index),   errors="coerce").fillna(0).round(2)
     df["Risk"]    = pd.to_numeric(risk.reindex(df.index),    errors="coerce").fillna(0).round(2)
 
+    # 백테스트 IC 기반 가중치 (2026-04-30 검증)
+    # Trend IC_6M=0.119(IR=1.497) 가장 강함 → 28%
+    # Value 학술 근거 강함(Fama-French) → 25%
+    # Growth IC 미검증 + 학술적으로 가장 약한 팩터 → 12%
     df["Total"] = (
-        0.20 * df["Growth"]
-        + 0.20 * df["Value"]
-        + 0.20 * df["Quality"]
-        + 0.20 * df["Trend"]
-        + 0.20 * df["Risk"]
+        0.12 * df["Growth"]
+        + 0.25 * df["Value"]
+        + 0.18 * df["Quality"]
+        + 0.28 * df["Trend"]
+        + 0.17 * df["Risk"]
     ).round(2)
 
     df = df.sort_values("Total", ascending=False).reset_index()
@@ -72,3 +76,19 @@ def to_csv(df: pd.DataFrame, path: str, top_n: int | None = None) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     data = df.head(top_n) if top_n is not None else df
     data.to_csv(path, encoding="utf-8-sig")
+
+
+def save_snapshot(df: pd.DataFrame, as_of_date: str) -> str:
+    """
+    백테스트용 스냅샷 저장: output/snapshots/YYYYMMDD.csv
+    파이프라인 실행마다 자동 호출 — 분기 IC 검증의 기반 데이터.
+    """
+    import os
+    snap_dir = os.path.join("output", "snapshots")
+    os.makedirs(snap_dir, exist_ok=True)
+    date_tag = as_of_date.replace("-", "")
+    path = os.path.join(snap_dir, f"{date_tag}.csv")
+    cols = ["code", "name", "sector", "Growth", "Value", "Quality", "Trend", "Risk", "Total"]
+    available = [c for c in cols if c in df.columns]
+    df[available].to_csv(path, index=False, encoding="utf-8-sig")
+    return path

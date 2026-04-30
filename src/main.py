@@ -301,6 +301,11 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     to_csv(result, f"{output_dir}/stocks_top100.csv", top_n=100)
     logger.info("TOP 100 저장 완료: %s/stocks_top100.csv", output_dir)
 
+    # 백테스트용 스냅샷 저장 (날짜별 누적 — IC 검증 기반)
+    from src.aggregator import save_snapshot
+    snap_path = save_snapshot(result, as_of_date)
+    logger.info("스냅샷 저장: %s", snap_path)
+
     return result
 
 
