@@ -19,7 +19,7 @@ st.set_page_config(
     page_title="QuantLab Screener",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded",  # CSS로 항상 강제 표시
 )
 
 CSV_PATH = Path(__file__).parent.parent / "output" / "stocks_top100.csv"
@@ -55,7 +55,7 @@ GRADE_CONFIG = {
 PLOTLY_BASE = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Noto Sans KR, sans-serif", size=11),
+    font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=11),
     margin=dict(l=36, r=12, t=36, b=28),
     height=300,
 )
@@ -74,14 +74,41 @@ BENCHMARK_PLATFORMS = [
 ]
 
 
+_WATCHLIST_PATH = Path(__file__).parent.parent / "output" / "watchlist.json"
+
+
+def _load_watchlist() -> list[str]:
+    """관심 종목을 파일에서 불러온다 (없으면 빈 리스트)."""
+    import json
+    try:
+        if _WATCHLIST_PATH.exists():
+            with _WATCHLIST_PATH.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+                return [str(c) for c in data] if isinstance(data, list) else []
+    except Exception:
+        pass
+    return []
+
+
+def _save_watchlist(codes: list[str]) -> None:
+    """관심 종목을 파일에 저장."""
+    import json
+    try:
+        _WATCHLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _WATCHLIST_PATH.open("w", encoding="utf-8") as f:
+            json.dump(codes, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.warning(f"관심 종목 저장 실패: {e}")
+
+
 # ── 세션 상태 초기화 ──────────────────────────────────────────────────────────
 def _init_session_state() -> None:
     defaults = {
         "search_query": "",
         "selected_compare": "없음",
-        "watchlist": [],
+        "watchlist": _load_watchlist(),
         "tab2_search": "",
-        "selected_code": None,  # Tab1 클릭 → Tab2 연동
+        "selected_code": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -92,15 +119,27 @@ def _init_session_state() -> None:
 def _inject_css() -> None:
     st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
+/* 시스템 폰트 사용 — CDN 제거로 렌더 속도 개선 */
 
 /* ── Streamlit 기본 UI 제거 ── */
 #MainMenu { visibility: hidden; }
 [data-testid="stToolbar"] { display: none !important; }
-[data-testid="stHeader"] { background: transparent !important; height: auto !important; min-height: 0 !important; }
-[data-testid="stHeader"] > * { display: none !important; }
-[data-testid="collapsedControl"] { display: flex !important; background: #0A0A0A !important; border-right: 1px solid #2A2A2A !important; }
+[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important; }
 footer { visibility: hidden; }
+
+/* ── 사이드바 항상 표시 (분할화면·좁은 뷰포트 대응) ── */
+section[data-testid="stSidebar"] {
+  transform: translateX(0) !important;
+  display: flex !important;
+  visibility: visible !important;
+  min-width: 200px !important;
+  max-width: 260px !important;
+}
+/* 접기 버튼 숨김 (좁은 화면에서 헷갈림 방지) */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+  display: none !important;
+}
 
 /* ── CSS Variables ── */
 :root {
@@ -120,7 +159,7 @@ footer { visibility: hidden; }
   --text-base:  #9A9278;
   --text-dim:   #4A4438;
   --text-label: #6A6050;
-  --mono:       'JetBrains Mono', monospace;
+  --mono:       'Menlo', 'Consolas', 'Monaco', monospace;
   --sans:       'Noto Sans KR', sans-serif;
   /* legacy compat */
   --bg-card:      rgba(255,255,255,0.03);
@@ -161,42 +200,12 @@ h1, h2, h3 {
   background: var(--bg-root) !important;
 }
 
-/* ── 탭 바 — flat terminal style ── */
-.stTabs [data-baseweb="tab-list"] {
-  gap: 0;
-  background: #000;
-  padding: 0 8px;
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
-.stTabs [data-baseweb="tab"] {
-  border-radius: 0;
-  padding: 0 16px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  border-bottom: 2px solid transparent;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  font-family: var(--mono) !important;
-  transition: color 0.1s;
-}
-.stTabs [aria-selected="true"] {
-  background: transparent !important;
-  color: var(--amber) !important;
-  border-bottom: 2px solid var(--amber) !important;
-  font-weight: 700;
-}
-.stTabs [data-baseweb="tab"]:hover {
-  color: var(--text-base) !important;
+/* ── 탭 바 완전 숨김 ── */
+.stTabs [data-baseweb="tab-list"],
+.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar,
+[data-testid="stTabs"] > div:first-child,
+div[role="tablist"] {
+  display: none !important;
 }
 
 /* ── 메트릭 카드 ── */
@@ -227,7 +236,6 @@ section[data-testid="stSidebar"] {
   border-right: 1px solid var(--border) !important;
 }
 section[data-testid="stSidebar"] .stSelectbox label,
-section[data-testid="stSidebar"] .stRadio label,
 section[data-testid="stSidebar"] .stSlider label {
   font-size: 0.68rem !important;
   color: var(--text-label) !important;
@@ -235,6 +243,50 @@ section[data-testid="stSidebar"] .stSlider label {
   text-transform: uppercase !important;
   letter-spacing: 0.1em !important;
   font-family: var(--mono) !important;
+}
+
+/* ── 사이드바 라디오 메뉴 ── */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
+  display: none !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+  gap: 4px !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+  padding: 6px 10px !important;
+  border-radius: 3px !important;
+  border: 1px solid transparent !important;
+  transition: background 0.12s, border-color 0.12s !important;
+  cursor: pointer !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
+  background: rgba(240,192,64,0.05) !important;
+  border-color: #2A2A2A !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label p {
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  color: #9A9278 !important;
+  font-family: var(--mono) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  margin: 0 !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover p {
+  color: #E8E0CC !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+  background: rgba(240,192,64,0.10) !important;
+  border-color: #B8922E !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) p {
+  color: #F0C040 !important;
+  font-weight: 700 !important;
+}
+/* 라디오 원형 아이콘 숨기기 (골드박스로만 선택 표시) */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label [data-baseweb="radio"],
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-child {
+  display: none !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="select"] > div {
   background: #0A0A0A !important;
@@ -459,6 +511,24 @@ def _last_updated() -> str:
     return "알 수 없음"
 
 
+def _last_updated_relative() -> str:
+    """파일 수정시각 대비 경과시간을 한국어로 반환 (예: '3시간 전')."""
+    if not CSV_PATH.exists():
+        return "데이터 없음"
+    mtime = CSV_PATH.stat().st_mtime
+    delta = datetime.now().timestamp() - mtime
+    if delta < 60:
+        return "방금 전"
+    if delta < 3600:
+        return f"{int(delta // 60)}분 전"
+    if delta < 86400:
+        return f"{int(delta // 3600)}시간 전"
+    days = int(delta // 86400)
+    if days < 30:
+        return f"{days}일 전"
+    return f"{days // 30}개월 전"
+
+
 # ── 투자등급 (분위 기반 동적 임계값 — 전문가 패널 #3) ──────────────────────────
 def investment_grade(score: float, thresholds: tuple[float, float, float] = (60, 50, 40)) -> str:
     t1, t2, t3 = thresholds
@@ -546,7 +616,7 @@ def radar_chart(
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Noto Sans KR, sans-serif"),
+        font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"),
         showlegend=row2 is not None,
         margin=dict(l=10, r=10, t=30, b=10),
         height=280,
@@ -640,46 +710,104 @@ def _get_price_history(code: str) -> pd.DataFrame:
     return get_price_data(code, start, end)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+_SECTOR_CACHE_PATH = Path(__file__).parent.parent / "output" / ".sector_strength_cache.json"
+_SECTOR_CACHE_TTL  = 1800  # 30분
+
+
+def _load_sector_cache() -> dict | None:
+    """디스크 캐시에서 섹터 강도 데이터 로드 (TTL 30분)."""
+    import json, time
+    try:
+        if not _SECTOR_CACHE_PATH.exists():
+            return None
+        if time.time() - _SECTOR_CACHE_PATH.stat().st_mtime > _SECTOR_CACHE_TTL:
+            return None
+        with _SECTOR_CACHE_PATH.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _save_sector_cache(data: dict) -> None:
+    """섹터 강도 데이터를 디스크에 저장."""
+    import json
+    try:
+        _SECTOR_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _SECTOR_CACHE_PATH.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
 def _compute_sector_strength(sector_nc_frozen: tuple) -> dict:
     """섹터별 최근 5일(1주) 수익률 계산 → 중앙값 기준 bull/bear 자동 분류.
-    TTL=600초(10분)로 장중 변화 반영.
+    TTL=1800초(30분) + 디스크 캐시 (서버 재기동에도 유지).
     sector_nc_frozen: ((섹터명, ((name1,code1), ...)), ...) 해시 가능 튜플.
     """
+    # 1) 디스크 캐시 먼저 확인 (서버 재기동 후 첫 진입 가속)
+    disk_cached = _load_sector_cache()
+    if disk_cached is not None:
+        return disk_cached
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from src.data_loader import get_price_data
     end   = pd.Timestamp.today().strftime("%Y-%m-%d")
     start = (pd.Timestamp.today() - pd.DateOffset(days=20)).strftime("%Y-%m-%d")
 
-    sector_returns: dict[str, float] = {}
-    sector_top: dict[str, list] = {}
-    for sector, name_code_pairs in sector_nc_frozen:
-        stock_rets: list[tuple[str, float]] = []
-        for name, code in name_code_pairs:
-            try:
-                pdata = get_price_data(code, start, end)
-                if pdata.empty or "Close" not in pdata.columns or len(pdata) < 5:
-                    continue
-                ret = (pdata["Close"].iloc[-1] / pdata["Close"].iloc[-5] - 1) * 100
-                stock_rets.append((name, round(float(ret), 2)))
-            except Exception:
+    # 1) 전체 (sector, name, code) 평탄화
+    flat: list[tuple[str, str, str]] = [
+        (sector, name, code)
+        for sector, ncs in sector_nc_frozen
+        for name, code in ncs
+    ]
+
+    def _one(item: tuple[str, str, str]) -> tuple[str, str, float] | None:
+        sector, name, code = item
+        try:
+            pdata = get_price_data(code, start, end)
+            if pdata.empty or "Close" not in pdata.columns or len(pdata) < 5:
+                return None
+            ret = (pdata["Close"].iloc[-1] / pdata["Close"].iloc[-5] - 1) * 100
+            return sector, name, round(float(ret), 2)
+        except Exception:
+            return None
+
+    # 2) 병렬 호출 (12 workers 권장)
+    sector_buckets: dict[str, list[tuple[str, float]]] = {}
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        futures = [executor.submit(_one, it) for it in flat]
+        for fut in as_completed(futures):
+            res = fut.result()
+            if res is None:
                 continue
-        if stock_rets:
-            vals = [r for _, r in stock_rets]
-            sector_returns[sector] = round(float(pd.Series(vals).median()), 2)
-            sector_top[sector] = sorted(stock_rets, key=lambda x: x[1], reverse=True)[:5]
+            sector, name, ret = res
+            sector_buckets.setdefault(sector, []).append((name, ret))
+
+    sector_returns: dict[str, float] = {}
+    sector_top:     dict[str, list]  = {}
+    for sector, stock_rets in sector_buckets.items():
+        if not stock_rets:
+            continue
+        vals = [r for _, r in stock_rets]
+        sector_returns[sector] = round(float(pd.Series(vals).median()), 2)
+        sector_top[sector] = sorted(stock_rets, key=lambda x: x[1], reverse=True)[:5]
 
     if not sector_returns:
-        return {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0, "sector_top": {}}
+        empty = {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0, "sector_top": {}}
+        return empty
 
     median_ret = float(pd.Series(list(sector_returns.values())).median())
     bull_sectors = [s for s, r in sector_returns.items() if r > median_ret]
 
-    return {
+    result = {
         "sector_returns": sector_returns,
-        "bull_sectors": bull_sectors,
-        "median_return": round(median_ret, 2),
-        "sector_top": sector_top,
+        "bull_sectors":   bull_sectors,
+        "median_return":  round(median_ret, 2),
+        "sector_top":     sector_top,
     }
+    _save_sector_cache(result)
+    return result
 
 
 def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
@@ -834,7 +962,7 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
     fig.update_layout(
         title=dict(text=f"<b>{name}</b> — 1년 주가 / 추세 지표", font=dict(size=12)),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Noto Sans KR, sans-serif", size=10, color="#E8E0CC"),
+        font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=10, color="#E8E0CC"),
         margin=dict(l=52, r=8, t=38, b=64), height=520,
         showlegend=True,
         legend=dict(orientation="h", y=1.12, x=0, font=dict(size=9)),
@@ -1069,12 +1197,14 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     # 관심목록 버튼
     wl = st.session_state.watchlist
     if code in wl:
-        if st.button("⭐ 관심 목록에서 제거", key="dlg_wl"):
+        if st.button("⭐ 관심 목록에서 제거", key=f"dlg_wl_rm_{code}"):
             wl.remove(code)
+            _save_watchlist(wl)
             st.rerun()
     else:
-        if st.button("☆ 관심 목록에 추가", key="dlg_wl"):
+        if st.button("☆ 관심 목록에 추가", key=f"dlg_wl_add_{code}"):
             wl.append(code)
+            _save_watchlist(wl)
             st.rerun()
 
     # 주가 차트
@@ -1121,6 +1251,108 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         f"종합 {total:.1f}점 / 100점</span></div>",
         unsafe_allow_html=True,
     )
+
+    st.markdown("---")
+
+    # ── 밸류에이션 매트릭 (PER·PBR·배당) ─────────────────────────────────────
+    st.markdown("#### 💰 밸류에이션")
+    try:
+        from src.valuation import get_stock_valuation, get_sector_valuation_avg
+        with st.spinner("PER·PBR 조회 중..."):
+            stock_val = get_stock_valuation(code)
+            sector_val = get_sector_valuation_avg(sector, df_univ)
+
+        def _val_card(label: str, key: str, fmt: str, lower_is_better: bool = True) -> str:
+            stock_v  = stock_val.get(key)
+            sector_v = sector_val.get(key)
+            if stock_v is None or pd.isna(stock_v):
+                stock_str = "—"
+                color     = "#6A6050"
+                badge     = ""
+            else:
+                stock_str = fmt.format(stock_v)
+                # 섹터 평균과 비교
+                if sector_v is not None:
+                    diff_pct = (stock_v - sector_v) / abs(sector_v) * 100 if sector_v != 0 else 0
+                    if lower_is_better:
+                        color = "#38B26B" if stock_v < sector_v else "#E03030"
+                        arrow = "▼" if stock_v < sector_v else "▲"
+                        good_label = "저평가" if stock_v < sector_v else "고평가"
+                    else:
+                        color = "#38B26B" if stock_v > sector_v else "#E03030"
+                        arrow = "▲" if stock_v > sector_v else "▼"
+                        good_label = "유리" if stock_v > sector_v else "불리"
+                    badge = (
+                        f"<div style='font-size:0.65rem;color:{color};font-family:monospace;margin-top:2px;'>"
+                        f"{arrow} 섹터 대비 {good_label} ({diff_pct:+.0f}%)</div>"
+                    )
+                else:
+                    color = "#F0C040"
+                    badge = ""
+            sector_str = fmt.format(sector_v) if sector_v is not None else "—"
+            return (
+                f"<div style='background:#111;border:1px solid #2A2A2A;border-radius:4px;"
+                f"padding:10px 12px;'>"
+                f"<div style='font-size:0.62rem;color:#6A6050;font-family:monospace;letter-spacing:0.08em;'>{label}</div>"
+                f"<div style='font-size:1.3rem;font-weight:800;font-family:monospace;color:{color};'>{stock_str}</div>"
+                f"<div style='font-size:0.65rem;color:#9A9278;font-family:monospace;'>섹터 중앙값 {sector_str}</div>"
+                f"{badge}"
+                f"</div>"
+            )
+
+        v_col1, v_col2, v_col3 = st.columns(3)
+        v_col1.markdown(_val_card("PER (배)",      "per", "{:.1f}", lower_is_better=True),  unsafe_allow_html=True)
+        v_col2.markdown(_val_card("PBR (배)",      "pbr", "{:.2f}", lower_is_better=True),  unsafe_allow_html=True)
+        v_col3.markdown(_val_card("배당수익률 (%)", "dividend_yield", "{:.2f}", lower_is_better=False), unsafe_allow_html=True)
+        st.caption(f"섹터: {sector} · 비교 표본 {sector_val.get('n', 0)}개 종목 · 출처: Naver Finance · 30분 캐시")
+    except Exception as e:
+        st.warning(f"밸류에이션 조회 실패: {e}")
+
+    st.markdown("---")
+
+    # ── 상대 강도(RS) — 시장 대비 ────────────────────────────────────────────
+    st.markdown("#### 📈 상대 강도 (vs KOSPI)")
+    st.caption("RS Line = 종목 가격 / KOSPI × 100 (기간 시작일 = 100). 우상향이면 시장 대비 강함.")
+    try:
+        from src.valuation import compute_relative_strength
+        with st.spinner("RS 계산 중..."):
+            rs_df = compute_relative_strength(code, benchmark="KS11", period_days=180)
+        if rs_df is not None and not rs_df.empty:
+            current_rs = float(rs_df["rs_norm"].iloc[-1])
+            rs_change  = current_rs - 100
+            rs_color   = "#38B26B" if rs_change >= 0 else "#E03030"
+            rs_arrow   = "▲" if rs_change >= 0 else "▼"
+            rs_label   = "시장보다 강함" if rs_change >= 0 else "시장보다 약함"
+
+            fig_rs = go.Figure()
+            fig_rs.add_trace(go.Scatter(
+                x=rs_df.index, y=rs_df["rs_norm"].values,
+                mode="lines", line=dict(color=rs_color, width=2),
+                name="RS Line",
+                hovertemplate="%{x|%Y-%m-%d}<br>RS: %{y:.1f}<extra></extra>",
+                fill="tonexty",
+            ))
+            fig_rs.add_hline(y=100, line_dash="dash", line_color="#6A6050", line_width=1,
+                             annotation_text="기준선 (시장과 동일)")
+            fig_rs.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#0D0D0D",
+                font=dict(family="monospace", size=10, color="#9A9278"),
+                margin=dict(l=50, r=20, t=20, b=30), height=240,
+                xaxis=dict(showgrid=False, tickfont=dict(size=9)),
+                yaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickfont=dict(size=9)),
+                title=dict(
+                    text=f"<span style='color:{rs_color};font-weight:700;'>{rs_arrow} RS {current_rs:.1f}</span>"
+                         f"  <span style='color:#9A9278;'>· {rs_label} ({rs_change:+.1f}p)</span>",
+                    x=0, y=0.97, font=dict(size=11),
+                ),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_rs, use_container_width=True, theme=None,
+                            key=f"rs_chart_{code}")
+        else:
+            st.info("상대 강도 계산을 위한 가격 데이터가 부족합니다.")
+    except Exception as e:
+        st.warning(f"RS 계산 실패: {e}")
 
     st.markdown("---")
 
@@ -1411,9 +1643,26 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.divider()
+
+        _NAV_PAGES = [
+            "종목 분석",
+            "글로벌 지표",
+            "섹터 현황",
+            "IC검증",
+        ]
+        sel_page = st.radio(
+            "페이지",
+            _NAV_PAGES,
+            label_visibility="collapsed",
+            key="nav_page",
+        )
+
+        st.divider()
+
         st.markdown(
             "<div style='font-size:0.72rem;color:#888;margin-bottom:10px;'>"
-            f"📅 {_last_updated()}</div>",
+            f"📅 {_last_updated()}<br>"
+            f"<span style='color:#B8922E;'>· {_last_updated_relative()}</span></div>",
             unsafe_allow_html=True,
         )
 
@@ -1457,11 +1706,14 @@ def main() -> None:
             st.rerun()
 
         st.divider()
-        st.markdown("**🔍 빠른 종목 분석**")
+        st.markdown("**🔍 빠른 종목 검색**")
         quick_srch = st.text_input("종목명 또는 코드", key="sidebar_quick_search", placeholder="예: 삼성전자")
         if quick_srch:
             st.session_state.tab2_search = quick_srch
-            st.caption("→ '종목 분석' 탭을 클릭하세요")
+            if sel_page == "종목 분석":
+                st.caption(f"✓ 랭킹에서 '{quick_srch}' 필터링 중")
+            else:
+                st.caption(f"→ '종목 분석' 메뉴 클릭 시 '{quick_srch}' 결과 표시")
 
         st.divider()
 
@@ -1512,10 +1764,10 @@ def main() -> None:
 
         st.divider()
 
-        # CustMgmt: In-session watchlist
+        # CustMgmt: 영구 저장된 관심 종목
         if st.session_state.watchlist:
             st.subheader(f"⭐ 관심 종목 ({len(st.session_state.watchlist)}개)")
-            st.caption("⚠️ 세션 종료(새로고침) 시 초기화됩니다")
+            st.caption("💾 파일 영구 저장됨")
             wl_df = df.reset_index()
             wl_df = wl_df[wl_df["code"].isin(st.session_state.watchlist)][
                 ["name", "code", "Total"]
@@ -1525,6 +1777,7 @@ def main() -> None:
                 col_w1.caption(f"{wrow['name']} ({wrow['code']}) — {wrow['Total']:.1f}점")
                 if col_w2.button("✕", key=f"wl_rm_{wrow['code']}"):
                     st.session_state.watchlist.remove(wrow["code"])
+                    _save_watchlist(st.session_state.watchlist)
                     st.rerun()
             st.divider()
 
@@ -1575,10 +1828,9 @@ def main() -> None:
     )
 
     is_empty = fdf.empty
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 랭킹", "🔍 종목 분석", "📈 분포", "💬 코멘트", "🔬 IC검증"])
 
-    # ── Tab 1: 랭킹 ───────────────────────────────────────────────────────────
-    with tab1:
+    # ── Tab 1: 종목 분석 ─────────────────────────────────────────────────────
+    if sel_page == "종목 분석":
         t1, t2, t3 = grade_thresholds
         st.markdown(
             f"<div style='display:flex;align-items:center;justify-content:space-between;"
@@ -1611,6 +1863,57 @@ def main() -> None:
                 file_name=f"quantlab_screener_{today_str}.csv",
                 mime="text/csv",
             )
+
+            # ── 상대 강도(RS) TOP — 시장 대비 강한 종목 ─────────────────────
+            with st.expander("📈 시장보다 강한 종목 TOP 20 (vs KOSPI)", expanded=False):
+                rs_col1, rs_col2 = st.columns([3, 1])
+                with rs_col1:
+                    rs_period = st.radio(
+                        "기간",
+                        ["20일", "60일", "120일"],
+                        index=1,
+                        horizontal=True,
+                        key="rs_top_period",
+                        label_visibility="collapsed",
+                    )
+                rs_days = {"20일": 20, "60일": 60, "120일": 120}[rs_period]
+                with rs_col2:
+                    rs_run = st.button("계산 실행", key="rs_run_btn",
+                                       use_container_width=True, type="primary")
+
+                cache_key = f"rs_top_result_{rs_days}"
+                if rs_run:
+                    @st.cache_data(ttl=1800, show_spinner="RS 계산 중 (100종목 병렬)...")
+                    def _cached_rs_top(period_days: int) -> pd.DataFrame:
+                        from src.valuation import get_top_relative_strength
+                        return get_top_relative_strength(
+                            df.reset_index(),
+                            benchmark="KS11",
+                            lookback_days=period_days,
+                            top_n=20,
+                        )
+                    st.session_state[cache_key] = _cached_rs_top(rs_days)
+
+                rs_top_df = st.session_state.get(cache_key)
+                if rs_top_df is None:
+                    st.info("👆 '계산 실행' 버튼을 눌러주세요. (~5~10초 소요)")
+                elif rs_top_df.empty:
+                    st.warning("RS 계산을 위한 가격 데이터가 부족합니다.")
+                else:
+                    rs_disp = rs_top_df[["name", "code", "sector", "stock_ret", "bench_ret", "excess_ret"]].copy()
+                    rs_disp.columns = ["종목명", "코드", "섹터", "종목수익률(%)", "KOSPI수익률(%)", "초과수익률(%)"]
+                    st.dataframe(
+                        rs_disp.style.format({
+                            "종목수익률(%)":   "{:+.2f}",
+                            "KOSPI수익률(%)":  "{:+.2f}",
+                            "초과수익률(%)":   "{:+.2f}",
+                        }).background_gradient(subset=["초과수익률(%)"], cmap="RdYlGn"),
+                        use_container_width=True,
+                        hide_index=True,
+                        height=420,
+                    )
+                    st.caption(f"기간: 최근 {rs_days}일 · 벤치마크: KOSPI (KS11) · 30분 캐시")
+
 
             with st.expander("🏆 업종별 TOP 종목"):
                 SECTOR_ICONS = {
@@ -1785,256 +2088,162 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     unsafe_allow_html=True)
 
 
-    # ── Tab 2: 종목 분석 ──────────────────────────────────────────────────────
-    with tab2:
-        st.subheader("종목 분석")
-
-        if is_empty:
-            st.warning("필터 조건에 맞는 종목이 없습니다. 조건을 완화하거나 **필터 초기화**를 클릭하세요.")
-        else:
-            all_rows = df.reset_index()
-            codes_list = all_rows["code"].tolist()
-            options_t2 = [f"{n} ({c})" for n, c in zip(all_rows["name"], codes_list)]
-
-            # 사이드바 빠른검색 또는 Tab1 클릭 연동
-            pre_query = st.session_state.get("tab2_search", "") or ""
-            pre_code  = st.session_state.get("selected_code")
-            default_idx = 0
-            if pre_code and pre_code in codes_list:
-                default_idx = codes_list.index(pre_code)
-            elif pre_query:
-                matched = [
-                    i for i, o in enumerate(options_t2)
-                    if pre_query.lower() in o.lower()
-                ]
-                if matched:
-                    default_idx = matched[0]
-
-            sel_t2 = st.selectbox(
-                "종목 선택",
-                options_t2,
-                index=default_idx,
-                key="tab2_selectbox",
-            )
-            sel_code_t2 = sel_t2.rsplit("(", 1)[-1].rstrip(")")
-            sel_row_t2  = all_rows[all_rows["code"] == sel_code_t2].iloc[0]
-
-            if "rank" not in sel_row_t2.index:
-                ranked = all_rows.sort_values("Total", ascending=False).reset_index(drop=True)
-                ranked["rank"] = ranked.index + 1
-                rank_map = dict(zip(ranked["code"], ranked["rank"]))
-                sel_row_t2 = sel_row_t2.copy()
-                sel_row_t2["rank"] = rank_map.get(sel_code_t2, 0)
-
-            _render_stock_detail(sel_row_t2, df, fdf, grade_thresholds, sector_info)
-
-    # ── Tab 3: 분포 분석 ──────────────────────────────────────────────────────
-    with tab3:
-        st.subheader("점수 분포 분석")
+    # ── Tab 2: 섹터 현황 ──────────────────────────────────────────────────────
+    if sel_page == "섹터 현황":
+        st.markdown(
+            "<div style='font-size:1.05rem;font-weight:700;margin-bottom:2px;'>섹터 현황</div>"
+            "<div style='font-size:0.8rem;color:#6A6050;margin-bottom:16px;'>"
+            "업종별 최근 5일 수익률 · 평균 점수 · 대표 종목</div>",
+            unsafe_allow_html=True,
+        )
 
         if is_empty:
             st.warning("필터 조건에 맞는 종목이 없습니다.")
         else:
-            st.caption("💡 드래그로 확대 · 더블클릭으로 초기화 · 호버로 상세 확인")
+            # ── 섹터 카드 그리드 ──────────────────────────────────────────────
+            sec_returns  = sector_info.get("sector_returns", {})
+            bull_set     = set(sector_info.get("bull_sectors", []))
+            sec_top      = sector_info.get("sector_top", {})
+            sec_avg_score = (
+                fdf.groupby("sector")["Total"].mean()
+                .round(1).to_dict()
+            )
 
-            # 데이터 품질 요약
-            missing_growth = (fdf["Growth"] == 0).sum()
-            flat_value = (fdf["Value"] == 37.5).sum()
-            if missing_growth > 0 or flat_value > 0:
-                st.caption(
-                    f"⚠️ 데이터 제한: 성장(DART 미확보 {missing_growth}개 Growth=0) · "
-                    f"가치·펀더멘털(pykrx API 불능으로 중립값 고정 {flat_value}개) — 차트에 반영됨"
+            # 정렬 옵션
+            _sort_opts = {
+                "수익률 ↓":  ("return",  True),
+                "수익률 ↑":  ("return",  False),
+                "점수 ↓":    ("score",   True),
+                "점수 ↑":    ("score",   False),
+                "가나다 순": ("name",    False),
+            }
+            sort_label = st.radio(
+                "정렬 기준",
+                list(_sort_opts.keys()),
+                index=0,
+                horizontal=True,
+                key="sector_sort",
+                label_visibility="collapsed",
+            )
+            sort_key, sort_desc = _sort_opts[sort_label]
+
+            _sector_set = set(list(sec_returns.keys()) + list(sec_avg_score.keys()))
+            if sort_key == "return":
+                all_sectors = sorted(_sector_set, key=lambda s: sec_returns.get(s) or -999, reverse=sort_desc)
+            elif sort_key == "score":
+                all_sectors = sorted(_sector_set, key=lambda s: sec_avg_score.get(s) or 0, reverse=sort_desc)
+            else:
+                all_sectors = sorted(_sector_set)
+
+            n_sec_cols = 3
+            for row_s in range(0, len(all_sectors), n_sec_cols):
+                row_secs = all_sectors[row_s:row_s + n_sec_cols]
+                scols = st.columns(n_sec_cols)
+                for sc, sec in zip(scols, row_secs):
+                    ret     = sec_returns.get(sec)
+                    score   = sec_avg_score.get(sec)
+                    tops    = sec_top.get(sec, [])
+                    is_bull = sec in bull_set
+
+                    ret_val   = ret or 0
+                    ret_arrow = "▲" if ret_val > 0.3 else "▼" if ret_val < -0.3 else "◆"
+                    ret_str   = f"{ret_arrow} {ret_val:+.1f}%" if ret is not None else "—"
+                    ret_color = "#38B26B" if ret_val > 0.3 else "#E03030" if ret_val < -0.3 else "#9A9278"
+                    score_str = f"{score:.0f}" if score is not None else "—"
+
+                    # 수익률 미니 바 (폭 = abs(ret)/5 * 100%, 최대 100%)
+                    bar_pct   = min(abs(ret_val) / 5 * 100, 100)
+                    bar_color = ret_color
+
+                    # 대표 종목 최대 3개
+                    top_html = ""
+                    for i, (nm, tr) in enumerate(tops[:3]):
+                        tc = "#38B26B" if tr >= 0 else "#E03030"
+                        top_html += (
+                            f"<div style='display:flex;justify-content:space-between;"
+                            f"padding:2px 0;'>"
+                            f"<span style='font-size:0.75rem;color:#9A9278;'>{nm}</span>"
+                            f"<span style='font-size:0.75rem;font-family:monospace;"
+                            f"color:{tc};font-weight:600;'>{tr:+.1f}%</span></div>"
+                        )
+
+                    sc.markdown(
+                        f"<div style='background:#111;border:1px solid #2A2A2A;"
+                        f"border-top:3px solid {ret_color};"
+                        f"border-radius:4px;padding:14px 16px;margin-bottom:8px;'>"
+                        # 섹터명
+                        f"<div style='font-size:0.88rem;font-weight:700;color:#E8E0CC;"
+                        f"margin-bottom:10px;letter-spacing:0.02em;'>{sec}</div>"
+                        # 수익률 + 점수
+                        f"<div style='display:flex;justify-content:space-between;"
+                        f"align-items:flex-end;margin-bottom:8px;'>"
+                        f"<div>"
+                        f"<div style='font-size:0.62rem;color:#6A6050;font-family:monospace;"
+                        f"letter-spacing:0.08em;margin-bottom:2px;'>5일 수익률</div>"
+                        f"<div style='font-size:1.4rem;font-weight:800;font-family:monospace;"
+                        f"color:{ret_color};line-height:1;'>{ret_str}</div>"
+                        f"</div>"
+                        f"<div style='text-align:right;'>"
+                        f"<div style='font-size:0.62rem;color:#6A6050;font-family:monospace;"
+                        f"letter-spacing:0.08em;margin-bottom:2px;'>종합 점수</div>"
+                        f"<div style='font-size:1.4rem;font-weight:800;font-family:monospace;"
+                        f"color:#F0C040;line-height:1;'>{score_str}</div>"
+                        f"</div></div>"
+                        # 미니 바
+                        f"<div style='background:#1A1A1A;border-radius:2px;height:3px;"
+                        f"margin-bottom:10px;'>"
+                        f"<div style='background:{bar_color};width:{bar_pct:.0f}%;height:3px;"
+                        f"border-radius:2px;'></div></div>"
+                        # 대표 종목
+                        f"<div style='border-top:1px solid #1E1E1E;padding-top:8px;'>"
+                        f"{top_html}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+            st.markdown("---")
+
+            # ── 업종별 평균 점수 가로 막대 차트 ──────────────────────────────
+            st.markdown(
+                "<div style='font-size:0.85rem;font-weight:700;color:#E8E0CC;"
+                "margin-bottom:8px;'>업종별 평균 종합 점수</div>"
+                "<div style='font-size:0.75rem;color:#6A6050;margin-bottom:12px;'>"
+                "점수가 높을수록 성장·가치·펀더멘털·추세·리스크 종합 평가가 좋은 업종</div>",
+                unsafe_allow_html=True,
+            )
+            try:
+                sec_avg_df = (
+                    fdf.groupby("sector")["Total"].mean()
+                    .sort_values(ascending=True)
+                    .reset_index()
                 )
-
-            col_a, col_b = st.columns(2)
-
-            with col_a:
-                try:
-                    box_df = fdf[AXES].rename(columns=AXIS_LABELS).melt(var_name="축", value_name="점수")
-                    fig_box = px.box(
-                        box_df, x="축", y="점수", color="축",
-                        color_discrete_map={v: AXIS_COLORS[k] for k, v in AXIS_LABELS.items()},
-                        title="5축 점수 분포",
-                    )
-                    fig_box.update_layout(
-                        **PLOTLY_BASE, showlegend=False,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)", title=""),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[-5, 105], title="점수"),
-                    )
-                    st.plotly_chart(fig_box, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"박스플롯 오류: {e}")
-
-            with col_b:
-                try:
-                    fig_hist = px.histogram(
-                        fdf, x="Total", nbins=15,
-                        title="종합점수 분포",
-                        color_discrete_sequence=["#F0C040"],
-                        labels={"Total": "종합점수", "count": "종목 수"},
-                    )
-                    fig_hist.update_layout(
-                        **PLOTLY_BASE,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)", title="종합점수"),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title="종목 수"),
-                        bargap=0.05,
-                    )
-                    st.plotly_chart(fig_hist, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"히스토그램 오류: {e}")
-
-            col_c, col_d = st.columns(2)
-
-            # 업종별 평균 종합점수 차트 (섹터 재분류 반영)
-            col_sector_chart, col_sector_count = st.columns(2)
-            with col_sector_chart:
-                try:
-                    sec_avg = (
-                        fdf.groupby("sector")["Total"].mean()
-                        .sort_values(ascending=True)
-                        .reset_index()
-                    )
-                    fig_sec = px.bar(
-                        sec_avg, x="Total", y="sector", orientation="h",
-                        title="업종별 평균 종합점수",
-                        color="Total",
-                        color_continuous_scale="RdYlGn",
-                        labels={"Total": "평균점수", "sector": "업종"},
-                    )
-                    _base_sec = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
-                    fig_sec.update_layout(
-                        **_base_sec,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[0, 100]),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)", title="",
-                                   tickfont=dict(size=9)),
-                        coloraxis_showscale=False,
-                        height=max(300, len(sec_avg) * 22),
-                        margin=dict(l=70, r=8, t=36, b=20),
-                    )
-                    st.plotly_chart(fig_sec, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"업종별 차트 오류: {e}")
-
-            with col_sector_count:
-                try:
-                    sec_cnt = fdf["sector"].value_counts().reset_index()
-                    sec_cnt.columns = ["업종", "종목 수"]
-                    fig_cnt = px.pie(
-                        sec_cnt, names="업종", values="종목 수",
-                        title="업종별 종목 수 비중",
-                        hole=0.45,
-                    )
-                    _base_cnt = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
-                    fig_cnt.update_layout(
-                        **_base_cnt,
-                        showlegend=True,
-                        legend=dict(font=dict(size=9), orientation="v", x=1.0, y=0.5),
-                        height=360,
-                    )
-                    fig_cnt.update_traces(textposition="inside", textinfo="percent",
-                                          textfont=dict(size=9))
-                    st.plotly_chart(fig_cnt, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"업종 비중 차트 오류: {e}")
-
-            with col_c:
-                try:
-                    # DART 미확보 종목(Growth=0) 제외해 산점도를 깔끔하게
-                    scatter_df = fdf.reset_index()
-                    excluded = (scatter_df["Growth"] == 0).sum()
-                    scatter_df = scatter_df[scatter_df["Growth"] > 0]
-                    title_suffix = f" ({excluded}개 Growth=0 제외)" if excluded > 0 else ""
-                    fig_scatter = px.scatter(
-                        scatter_df, x="Growth", y="Trend",
-                        hover_data=["name", "code", "Total"],
-                        color="Total",
-                        color_continuous_scale="RdYlGn",
-                        size_max=10,
-                        title=f"성장 vs 추세{title_suffix}",
-                        labels={"Growth": "성장점수", "Trend": "추세점수"},
-                    )
-                    fig_scatter.add_hline(y=50, line_dash="dot", line_color="rgba(128,128,128,0.3)", line_width=1)
-                    fig_scatter.add_vline(x=50, line_dash="dot", line_color="rgba(128,128,128,0.3)", line_width=1)
-                    fig_scatter.update_layout(
-                        **PLOTLY_BASE,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        coloraxis_colorbar=dict(thickness=12, len=0.6),
-                    )
-                    st.plotly_chart(fig_scatter, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"산점도 오류: {e}")
-
-            with col_d:
-                try:
-                    # KOSPI/KOSDAQ만 표시 (KOSDAQ GLOBAL 등 소수 카테고리 정리)
-                    mkt_fdf = fdf[fdf["market"].isin(["KOSPI", "KOSDAQ"])]
-                    mkt_avg = mkt_fdf.groupby("market")[AXES + ["Total"]].mean().round(1)
-                    mkt_avg.columns = [AXIS_LABELS.get(c, c) for c in mkt_avg.columns]
-                    fig_bar = px.bar(
-                        mkt_avg.reset_index().melt(id_vars="market"),
-                        x="variable", y="value", color="market",
-                        barmode="group",
-                        color_discrete_map={"KOSPI": "#4A90D9", "KOSDAQ": "#4ABF6A"},
-                        title="KOSPI vs KOSDAQ 평균 점수",
-                        labels={"variable": "", "value": "평균점수", "market": "시장"},
-                    )
-                    fig_bar.update_layout(
-                        **PLOTLY_BASE,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        legend=dict(orientation="h", y=1.1, x=0),
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"막대차트 오류: {e}")
-
-            # P4: Risk 분포 차트
-            col_risk1, col_risk2 = st.columns(2)
-            with col_risk1:
-                try:
-                    fig_risk = px.histogram(
-                        fdf, x="Risk", nbins=15,
-                        title="리스크 점수 분포 (높을수록 저위험)",
-                        color_discrete_sequence=["#00BCD4"],
-                        labels={"Risk": "리스크 점수", "count": "종목 수"},
-                    )
-                    fig_risk.add_vline(x=fdf["Risk"].mean(), line_dash="dash",
-                                       line_color="white", annotation_text=f"평균 {fdf['Risk'].mean():.1f}")
-                    fig_risk.update_layout(
-                        **PLOTLY_BASE,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)", range=[-5, 105]),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        bargap=0.05,
-                    )
-                    st.plotly_chart(fig_risk, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"리스크 분포 오류: {e}")
-
-            with col_risk2:
-                try:
-                    fig_rv = px.scatter(
-                        fdf.reset_index(), x="Risk", y="Trend",
-                        hover_data=["name", "code", "Total"],
-                        color="Total",
-                        color_continuous_scale="RdYlGn",
-                        title="리스크 vs 추세 (우상단 = 저위험·상승추세)",
-                        labels={"Risk": "리스크 점수", "Trend": "추세 점수"},
-                    )
-                    fig_rv.add_hline(y=50, line_dash="dot", line_color="rgba(128,128,128,0.3)", line_width=1)
-                    fig_rv.add_vline(x=50, line_dash="dot", line_color="rgba(128,128,128,0.3)", line_width=1)
-                    fig_rv.update_layout(
-                        **PLOTLY_BASE,
-                        xaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        yaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
-                        coloraxis_colorbar=dict(thickness=12, len=0.6),
-                    )
-                    st.plotly_chart(fig_rv, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"리스크·추세 산점도 오류: {e}")
+                sec_avg_df.columns = ["업종", "평균점수"]
+                fig_sec = px.bar(
+                    sec_avg_df, x="평균점수", y="업종", orientation="h",
+                    color="평균점수",
+                    color_continuous_scale=["#E03030", "#F0C040", "#38B26B"],
+                    range_color=[30, 70],
+                )
+                fig_sec.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="#0D0D0D",
+                    font=dict(family="monospace", size=10, color="#9A9278"),
+                    xaxis=dict(gridcolor="rgba(255,255,255,0.05)", range=[0, 80],
+                               title="평균 점수 (0~100)", tickfont=dict(size=9)),
+                    yaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="",
+                               tickfont=dict(size=10)),
+                    coloraxis_showscale=False,
+                    height=max(320, len(sec_avg_df) * 28),
+                    margin=dict(l=110, r=16, t=16, b=36),
+                    hoverlabel=dict(bgcolor="#1A1A1A", bordercolor="#3A3A3A",
+                                    font=dict(size=11, family="monospace")),
+                )
+                st.plotly_chart(fig_sec, use_container_width=True)
+            except Exception as e:
+                st.warning(f"업종별 차트 오류: {e}")
 
     # ── Tab 4: 시장 코멘트 ────────────────────────────────────────────────────
-    with tab4:
+    if sel_page == "💬 코멘트":
         st.subheader("💬 시장 코멘트 및 추천 근거")
 
         if is_empty:
@@ -2060,15 +2269,48 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
 
 
     # ── Tab 5: IC 검증 ────────────────────────────────────────────────────────
-    with tab5:
+    if sel_page == "IC검증":
+        st.markdown(
+            "<div style='font-size:1.05rem;font-weight:700;margin-bottom:2px;'>IC검증</div>"
+            "<div style='font-size:0.8rem;color:#6A6050;margin-bottom:12px;'>"
+            "스코어링 모델이 실제로 수익률을 예측하는지 확인하는 화면</div>",
+            unsafe_allow_html=True,
+        )
+
+        # ── 초보자 해설 카드 ─────────────────────────────────────────────────
+        with st.expander("🔰 이 화면이 뭔지 모르겠다면 여기를 펼치세요", expanded=True):
+            st.markdown("""
+**핵심 질문: "이 앱의 점수가 진짜 맞나요?"**
+
+이 화면은 그 질문에 답합니다. 점수가 높은 종목이 실제로 이후 주가가 올랐는지를 과거 데이터로 검증합니다.
+
+---
+
+**보는 방법 (숫자 의미)**
+
+| 지표 | 쉬운 설명 | 좋은 기준 |
+|---|---|---|
+| **IC 평균** | 예측 정확도. 1에 가까울수록 완벽 | **0.10 이상**이면 믿을 만함 |
+| **IR** | 예측이 얼마나 일관적인지 | **0.5 이상**이면 안정적 |
+
+**IC가 양수(+)** → 점수 높은 종목이 실제로 올랐다는 뜻 ✅
+**IC가 음수(−)** → 점수가 오히려 반대로 작동했다는 뜻 ⚠️
+**IC가 0에 가까움** → 해당 팩터는 수익률 예측에 도움이 안 됨
+
+---
+
+**결론을 어떻게 쓰나요?**
+- Trend 3M IC ≈ 0.10, IR > 1.5 → **"추세 점수는 3개월 수익률 예측에 유효"** → 가중치 유지
+- Risk IC < 0.05 → **"리스크 팩터 신뢰도 낮음"** → 가중치 조정 검토
+""")
+
+        st.markdown("---")
         st.subheader("IC/IR 백테스트 — 점수의 예측력 검증")
         st.markdown(
-            "**이 탭은 스크리너 점수가 실제로 미래 수익률을 예측하는지 검증합니다.**\n\n"
             "- **IC (정보계수)**: 점수 순위와 실제 주가 수익률 순위의 일치도 (−1 ~ +1)\n"
             "  - `IC > 0.10`: 유의미한 예측력 ✅  |  `0.05~0.10`: 약한 신호 🟡  |  `< 0.05`: 무의미 🔴\n"
             "- **IR (정보비율)**: IC가 얼마나 안정적으로 나오는지 (IC 평균 ÷ IC 변동성)\n"
-            "  - `IR > 0.5`: 안정적 ✅  |  `0.3~0.5`: 보통 🟡  |  `< 0.3`: 불안정 🔴\n"
-            "- **포워드 수익률**: 점수 계산 이후 1·3·6개월 뒤 주가 변화율"
+            "  - `IR > 0.5`: 안정적 ✅  |  `0.3~0.5`: 보통 🟡  |  `< 0.3`: 불안정 🔴"
         )
 
         st.markdown("#### 🔄 가격 축 히스토리컬 IC/IR (Trend·Risk)")
@@ -2101,7 +2343,6 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 use_container_width=True,
             )
             try:
-                import plotly.graph_objects as go
                 fig_ic = go.Figure()
                 for col in bt_cached.columns:
                     fig_ic.add_trace(go.Scatter(
@@ -2157,6 +2398,542 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
         with guide_cols[2]:
             st.markdown("**주의사항**")
             st.markdown("- 과거 IC가 미래를 보장하지 않음\n- 8분기 = 통계적으로 낮은 신뢰도\n- 단독 의사결정 도구로 사용 금지")
+
+
+    # ── Tab 6: 글로벌 지표 ────────────────────────────────────────────────────
+    if sel_page == "글로벌 지표":
+        _render_macro_tab()
+
+
+def _render_macro_tab() -> None:
+    """매크로 레이더 탭 — 글로벌 지수·원자재·채권·환율·반등 신호"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).parent.parent / ".env")
+    except ImportError:
+        pass
+
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def _load_macro(period: int) -> dict:
+        from src.macro_loader import get_all_macro
+        return get_all_macro(period_days=period)
+
+    st.markdown(
+        "<div style='font-size:1.05rem;font-weight:700;margin-bottom:4px;'>매크로 레이더"
+        " <span style='font-size:0.75rem;font-weight:400;color:#6A6050;font-family:monospace;'>"
+        "1시간 캐시 · Yahoo Finance / FDR</span></div>",
+        unsafe_allow_html=True,
+    )
+
+    _period_options = {"3개월": 90, "6개월": 180, "1년": 365, "2년": 730}
+    period_label = st.radio(
+        "조회 기간",
+        list(_period_options.keys()),
+        index=2,
+        horizontal=True,
+        key="macro_period_label",
+        label_visibility="collapsed",
+    )
+    period = _period_options[period_label]
+
+    with st.spinner("글로벌 지표 수집 중..."):
+        macro = _load_macro(period)
+
+    indicators      = macro.get("indicators", {})
+    summary_df      = macro.get("summary", None)
+    sector_signals  = macro.get("sector_signals", None)
+    rebound_signals = macro.get("rebound_signals", None)
+    base_rate       = macro.get("base_rate", None)
+    construction    = macro.get("construction", None)
+
+    from src.macro_loader import INDICATORS as IND_META, INDICATOR_CATEGORIES
+    valid_inds = {k: v for k, v in indicators.items() if not v.empty and "Close" in v.columns}
+
+    # ── 비교 차트 (정규화) ──────────────────────────────────────────────────
+    with st.expander("📊 지표 비교 (정규화 차트)", expanded=False):
+        st.caption("선택한 지표들을 기간 시작일 = 100 으로 정규화하여 한 차트에 겹쳐 표시")
+        comp_options = [(k, IND_META.get(k, {}).get("label", k)) for k in valid_inds.keys()]
+        comp_keys = st.multiselect(
+            "비교할 지표 (2~5개 권장)",
+            options=[k for k, _ in comp_options],
+            default=[k for k in ["SP500", "KOSPI", "Gold"] if k in valid_inds],
+            format_func=lambda k: dict(comp_options).get(k, k),
+            key="macro_compare_select",
+            label_visibility="collapsed",
+        )
+        if len(comp_keys) >= 2:
+            fig_cmp = go.Figure()
+            for k in comp_keys:
+                s = valid_inds[k]["Close"].dropna()
+                if s.empty:
+                    continue
+                base = float(s.iloc[0])
+                if base == 0:
+                    continue
+                norm = s / base * 100
+                meta = IND_META.get(k, {})
+                fig_cmp.add_trace(go.Scatter(
+                    x=norm.index, y=norm.values,
+                    mode="lines",
+                    line=dict(color=meta.get("color", "#F0C040"), width=2),
+                    name=meta.get("label", k),
+                    hovertemplate="%{x|%Y-%m-%d}<br>" + meta.get("label", k) + ": %{y:.1f}<extra></extra>",
+                ))
+            fig_cmp.add_hline(y=100, line_dash="dot", line_color="#6A6050", line_width=1)
+            fig_cmp.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#0D0D0D",
+                font=dict(family="monospace", size=10, color="#9A9278"),
+                margin=dict(l=50, r=20, t=24, b=40),
+                height=380,
+                xaxis=dict(showgrid=False, tickfont=dict(size=9)),
+                yaxis=dict(gridcolor="rgba(255,255,255,0.05)",
+                           title="정규화 지수 (시작일=100)",
+                           tickfont=dict(size=9)),
+                legend=dict(orientation="h", y=1.06, x=0,
+                            font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
+                hovermode="x unified",
+            )
+            st.plotly_chart(fig_cmp, use_container_width=True, theme=None,
+                            key="macro_compare_chart")
+        elif comp_keys:
+            st.info("비교를 위해 2개 이상의 지표를 선택하세요.")
+
+    st.markdown("---")
+
+    # ── 반등 신호 스캐너 ─────────────────────────────────────────────────────
+    st.markdown("#### 반등 신호 스캐너")
+    st.caption("RSI(14) · 52주 낙폭 · MA200 대비 위치 기준 — 참고용 기술적 지표")
+
+    _SIGNAL_STYLE = {
+        "강한 반등 후보": ("#38B26B", "#1A3A20"),
+        "반등 후보":      ("#6FCFCF", "#0D2530"),
+        "관심":           ("#F0C040", "#2A1A00"),
+        "중립":           ("#6A6050", "#111111"),
+        "과매수":         ("#E03030", "#2A0A0A"),
+    }
+
+    if rebound_signals is not None and not rebound_signals.empty:
+        # 필터 옵션
+        f_col1, f_col2 = st.columns([3, 1])
+        with f_col1:
+            _filter_opts = {
+                "강한 반등 후보만":  ["강한 반등 후보"],
+                "반등 후보 이상":    ["강한 반등 후보", "반등 후보"],
+                "관심 이상":         ["강한 반등 후보", "반등 후보", "관심"],
+                "중립 제외 전체":    ["강한 반등 후보", "반등 후보", "관심", "과매수"],
+            }
+            filter_label = st.radio(
+                "신호 필터",
+                list(_filter_opts.keys()),
+                index=2,
+                horizontal=True,
+                key="rebound_filter",
+                label_visibility="collapsed",
+            )
+        with f_col2:
+            sort_by_rsi = st.checkbox("RSI 낮은 순", value=False, key="rebound_sort_rsi")
+
+        allowed_signals = _filter_opts[filter_label]
+        filtered = rebound_signals[rebound_signals["신호"].isin(allowed_signals)].copy()
+        if sort_by_rsi:
+            filtered = filtered.sort_values("RSI14", na_position="last")
+
+        highlight = filtered.head(8)
+        if not highlight.empty:
+            h_cols = st.columns(min(len(highlight), 4))
+            for hc, (_, hr) in zip(h_cols * 2, highlight.iterrows()):
+                sig = hr["신호"]
+                txt_color, bg_color = _SIGNAL_STYLE.get(sig, ("#9A9278", "#111"))
+                rsi_val = hr["RSI14"]
+                dd_val  = hr["52주낙폭"]
+                rsi_str = f"RSI {rsi_val:.0f}" if rsi_val is not None else "RSI —"
+                dd_str  = f"52w {dd_val:+.0f}%" if dd_val is not None else ""
+                val = hr["현재값"]
+                val_str = f"{val:,.0f}" if val >= 100 else f"{val:.2f}"
+                hc.markdown(
+                    f"<div style='background:{bg_color};border:1px solid #2A2A2A;"
+                    f"border-left:3px solid {txt_color};border-radius:4px;"
+                    f"padding:10px 12px;margin-bottom:6px;'>"
+                    f"<div style='font-size:0.65rem;color:#6A6050;font-family:monospace;'>{hr['지표']}</div>"
+                    f"<div style='font-size:1.0rem;font-weight:700;font-family:monospace;color:{txt_color};'>"
+                    f"{val_str} <span style='font-size:0.7rem;'>{hr['단위']}</span></div>"
+                    f"<div style='font-size:0.7rem;color:{txt_color};font-family:monospace;margin-top:2px;'>{sig}</div>"
+                    f"<div style='font-size:0.65rem;color:#6A6050;font-family:monospace;'>{rsi_str} · {dd_str}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # 전체 신호 테이블
+        with st.expander("전체 반등 신호 테이블"):
+            display_cols = ["지표", "현재값", "단위", "RSI14", "MA50대비", "MA200대비", "52주낙폭", "신호"]
+            tbl = rebound_signals[display_cols].copy()
+            st.dataframe(
+                tbl.style.format({
+                    "현재값":   "{:,.2f}",
+                    "RSI14":    lambda x: f"{x:.1f}" if x is not None and not pd.isna(x) else "—",
+                    "MA50대비": lambda x: f"{x:+.1f}%" if x is not None and not pd.isna(x) else "—",
+                    "MA200대비":lambda x: f"{x:+.1f}%" if x is not None and not pd.isna(x) else "—",
+                    "52주낙폭": lambda x: f"{x:+.1f}%" if x is not None and not pd.isna(x) else "—",
+                }),
+                use_container_width=True,
+                hide_index=True,
+            )
+    else:
+        st.info("반등 신호 계산에 필요한 데이터가 부족합니다. 기간을 365일로 늘려보세요.")
+
+    st.markdown("---")
+
+    # ── 카테고리별 차트 렌더링 헬퍼 ─────────────────────────────────────────
+    try:
+        from src.macro_loader import compute_rsi as _compute_rsi
+    except Exception:
+        _compute_rsi = None
+
+    def _make_chart(key: str, height: int = 280) -> "go.Figure | None":
+        if key not in valid_inds:
+            return None
+        df_ind = valid_inds[key]
+        meta   = IND_META.get(key, {})
+        s = df_ind["Close"].dropna()
+        if s.empty:
+            return None
+
+        color = meta.get("color", "#F0C040")
+        try:
+            r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+            fill_color = f"rgba({r},{g},{b},0.12)"
+        except Exception:
+            fill_color = "rgba(240,192,64,0.12)"
+
+        current_val = float(s.iloc[-1])
+        unit = meta.get("unit", "")
+
+        # % 변화율 계산
+        def _pct(n: int) -> float | None:
+            if len(s) <= n:
+                return None
+            base = float(s.iloc[-n])
+            return (current_val / base - 1) * 100 if base != 0 else None
+
+        chg_1m  = _pct(22)
+        chg_3m  = _pct(66)
+        chg_1y  = _pct(252)
+
+        # RSI
+        rsi_val = None
+        if _compute_rsi is not None and len(s) >= 20:
+            try:
+                rsi_series = _compute_rsi(s)
+                v = rsi_series.iloc[-1]
+                if not pd.isna(v):
+                    rsi_val = float(v)
+            except Exception:
+                pass
+
+        fig = go.Figure()
+
+        # 가격 영역
+        fig.add_trace(go.Scatter(
+            x=s.index, y=s.values,
+            mode="lines",
+            line=dict(color=color, width=2),
+            fill="tozeroy",
+            fillcolor=fill_color,
+            hovertemplate=f"%{{x|%Y-%m-%d}}<br>%{{y:,.2f}} {unit}<extra></extra>",
+            name="가격",
+        ))
+
+        # MA50
+        ma50 = s.rolling(50, min_periods=15).mean()
+        if not ma50.dropna().empty:
+            fig.add_trace(go.Scatter(
+                x=ma50.index, y=ma50.values,
+                mode="lines",
+                line=dict(color="#F0C040", width=1.2, dash="dot"),
+                name="MA50",
+                hovertemplate="MA50: %{y:,.2f}<extra></extra>",
+            ))
+
+        # MA200
+        ma200 = s.rolling(200, min_periods=60).mean()
+        if not ma200.dropna().empty:
+            fig.add_trace(go.Scatter(
+                x=ma200.index, y=ma200.values,
+                mode="lines",
+                line=dict(color="#6A6050", width=1.2, dash="dash"),
+                name="MA200",
+                hovertemplate="MA200: %{y:,.2f}<extra></extra>",
+            ))
+
+        # RSI 과매도 구간 (< 30) 하이라이트
+        if _compute_rsi is not None and len(s) >= 20:
+            try:
+                rsi_vals = _compute_rsi(s)
+                # 과매도 구간을 연속 범위로 묶어 hrect 표시
+                in_zone = rsi_vals < 30
+                start = None
+                for dt, val in in_zone.items():
+                    if val and start is None:
+                        start = dt
+                    elif not val and start is not None:
+                        fig.add_vrect(
+                            x0=start, x1=dt,
+                            fillcolor="rgba(56,178,107,0.10)",
+                            layer="below", line_width=0,
+                        )
+                        start = None
+                if start is not None:
+                    fig.add_vrect(
+                        x0=start, x1=s.index[-1],
+                        fillcolor="rgba(56,178,107,0.10)",
+                        layer="below", line_width=0,
+                    )
+            except Exception:
+                pass
+
+        # 우측 상단 annotation: 현재값 + 변화율 + RSI
+        chg_color = (
+            "#38B26B" if chg_1m and chg_1m >= 0
+            else "#E03030" if chg_1m and chg_1m < 0
+            else "#6A6050"
+        )
+        chg_str   = f"{chg_1m:+.1f}%" if chg_1m is not None else "—"
+        chg3_str  = f"3M {chg_3m:+.1f}%" if chg_3m is not None else ""
+        rsi_str   = f"RSI {rsi_val:.0f}" if rsi_val is not None else ""
+        rsi_color = (
+            "#38B26B" if rsi_val and rsi_val < 35
+            else "#E03030" if rsi_val and rsi_val > 65
+            else "#9A9278"
+        )
+
+        # 타이틀: 지표명 + 현재값
+        val_str = f"{current_val:,.2f}" if current_val < 10000 else f"{current_val:,.0f}"
+        title_text = (
+            f"<b>{meta.get('label', key)}</b>  "
+            f"<span style='font-size:1.1em;'>{val_str}</span> "
+            f"<span style='color:{chg_color};'>{chg_str}</span>"
+        )
+
+        annotations = []
+        if chg3_str or rsi_str:
+            sub_parts = []
+            if chg3_str:
+                sub_parts.append(f"<span style='color:#9A9278;'>{chg3_str}</span>")
+            if rsi_str:
+                sub_parts.append(f"<span style='color:{rsi_color};'>{rsi_str}</span>")
+            annotations.append(dict(
+                text=" · ".join(sub_parts),
+                xref="paper", yref="paper",
+                x=0.0, y=1.0,
+                xanchor="left", yanchor="bottom",
+                showarrow=False,
+                font=dict(size=9, family="monospace"),
+                bgcolor="rgba(0,0,0,0)",
+            ))
+
+        fig.update_layout(
+            title=dict(text=title_text, font=dict(size=11, family="monospace"), x=0, y=0.97),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                x=1, y=1, xanchor="right", yanchor="top",
+                font=dict(size=8, color="#6A6050"),
+                bgcolor="rgba(0,0,0,0)",
+                itemsizing="constant",
+            ),
+            annotations=annotations,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#0D0D0D",
+            font=dict(family="monospace", size=9, color="#9A9278"),
+            margin=dict(l=48, r=12, t=52, b=28),
+            height=height,
+            xaxis=dict(
+                showgrid=False,
+                tickfont=dict(size=8),
+                linecolor="#2A2A2A",
+                tickcolor="#2A2A2A",
+            ),
+            yaxis=dict(
+                gridcolor="rgba(255,255,255,0.05)",
+                tickfont=dict(size=8),
+                tickformat=",.2f",
+                linecolor="#2A2A2A",
+                zeroline=False,
+            ),
+            hovermode="x unified",
+            hoverlabel=dict(
+                bgcolor="#1A1A1A",
+                bordercolor="#3A3A3A",
+                font=dict(size=10, family="monospace"),
+            ),
+        )
+        return fig
+
+    def _render_category_charts(
+        cat_name: str, keys: list[str],
+        n_cols: int = 3, height: int = 280,
+        expanded: bool = True,
+    ) -> None:
+        cat_keys = [k for k in keys if k in valid_inds]
+        missing  = [k for k in keys if k not in valid_inds]
+
+        if not cat_keys and not missing:
+            return
+
+        title_cnt = f"{len(cat_keys)}/{len(keys)}"
+        with st.expander(f"**{cat_name}** · {title_cnt}", expanded=expanded):
+            if not cat_keys:
+                st.caption("이 카테고리는 데이터를 불러오지 못했습니다.")
+            else:
+                for row_start in range(0, len(cat_keys), n_cols):
+                    row_keys = cat_keys[row_start:row_start + n_cols]
+                    ccols = st.columns(n_cols)
+                    for idx, cc in enumerate(ccols):
+                        if idx < len(row_keys):
+                            fig = _make_chart(row_keys[idx], height=height)
+                            if fig:
+                                cc.plotly_chart(fig, use_container_width=True, theme=None,
+                                                key=f"macro_{row_keys[idx]}")
+                        else:
+                            cc.empty()
+            if missing:
+                missing_labels = ", ".join(IND_META.get(k, {}).get("label", k) for k in missing)
+                st.caption(f"⚠️ 데이터 없음: {missing_labels}")
+
+    # 글로벌 지수만 기본 펼침, 나머지는 접기 (초기 렌더 부담 감소)
+    _render_category_charts("글로벌 주요 지수", INDICATOR_CATEGORIES["글로벌 지수"], n_cols=3, height=300, expanded=True)
+    _render_category_charts("국내 지수",       INDICATOR_CATEGORIES["국내 지수"],   n_cols=2, height=300, expanded=True)
+    _render_category_charts("원자재",          INDICATOR_CATEGORIES["원자재"],     n_cols=3, height=260, expanded=False)
+    _render_category_charts("채권·금리",       INDICATOR_CATEGORIES["채권·금리"],   n_cols=2, height=280, expanded=False)
+    _render_category_charts("환율",            INDICATOR_CATEGORIES["환율"],       n_cols=3, height=260, expanded=False)
+    _render_category_charts("공포·해운",       INDICATOR_CATEGORIES["공포·해운"],   n_cols=2, height=260, expanded=False)
+    _render_category_charts("암호화폐",        INDICATOR_CATEGORIES["암호화폐"],   n_cols=2, height=280, expanded=False)
+    st.markdown("---")
+
+    # ── 섹터별 매크로 신호 ────────────────────────────────────────────────────
+    st.markdown("#### 섹터별 현재 매크로 신호")
+    st.caption(f"최근 30일 지표 변화 기준 — 수집 지표: {', '.join(valid_inds.keys()) or '없음'}")
+
+    if sector_signals is not None and not sector_signals.empty:
+        _SIG_CLR = {
+            "강한 호재": "#38B26B",
+            "호재":      "#6FCFCF",
+            "중립":      "#6A6050",
+            "역풍":      "#E07030",
+            "강한 역풍": "#E03030",
+        }
+        n_sig_cols = 3
+        sig_rows = [sector_signals.iloc[i:i+n_sig_cols] for i in range(0, len(sector_signals), n_sig_cols)]
+        for sig_row in sig_rows:
+            sig_cols = st.columns(n_sig_cols)
+            for sc, (_, sr) in zip(sig_cols, sig_row.iterrows()):
+                clr = _SIG_CLR.get(sr["signal"], "#6A6050")
+                sc.markdown(
+                    f"<div style='background:#111;border:1px solid #2A2A2A;border-left:3px solid {clr};"
+                    f"border-radius:4px;padding:8px 10px;margin-bottom:6px;'>"
+                    f"<div style='font-size:0.8rem;font-weight:700;margin-bottom:2px;'>{sr['sector']}</div>"
+                    f"<div style='font-size:0.75rem;color:{clr};font-family:monospace;margin-bottom:4px;'>"
+                    f"{sr['signal']}</div>"
+                    f"<div style='font-size:0.65rem;color:#6A6050;line-height:1.4;'>{sr['reasons']}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+    else:
+        st.info("섹터 신호 계산에 필요한 지표 데이터가 부족합니다.")
+
+    st.markdown("---")
+
+    # ── ECOS 기준금리 ────────────────────────────────────────────────────────
+    if base_rate is not None and not base_rate.empty:
+        st.markdown("#### 한국은행 기준금리")
+        fig_rate = go.Figure()
+        fig_rate.add_trace(go.Scatter(
+            x=base_rate.index, y=base_rate["Close"].values,
+            mode="lines+markers",
+            line=dict(color="#F0C040", width=2),
+            marker=dict(size=4),
+            hovertemplate="%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>",
+        ))
+        fig_rate.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=10),
+            margin=dict(l=30, r=10, t=20, b=20), height=220,
+            xaxis=dict(showgrid=False),
+            yaxis=dict(gridcolor="rgba(128,128,128,0.1)", ticksuffix="%"),
+        )
+        st.plotly_chart(fig_rate, use_container_width=True)
+    else:
+        st.markdown(
+            "<div style='background:#111;border:1px solid #2A2A2A;border-radius:4px;"
+            "padding:12px 16px;'>"
+            "<span style='font-size:0.8rem;'>한국은행 기준금리 활성화: "
+            "<code style='color:#F0C040;'>ECOS_API_KEY</code> 환경변수 설정 필요 "
+            "(<a href='https://ecos.bok.or.kr' style='color:#6FCFCF;'>ecos.bok.or.kr</a> 무료 가입)</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── KOSIS 건설수주 ────────────────────────────────────────────────────────
+    if construction is not None and not construction.empty:
+        st.markdown("#### 건설수주 월별 추이 (KOSIS)")
+        fig_con = go.Figure()
+        fig_con.add_trace(go.Bar(
+            x=construction.index, y=construction["Close"].values,
+            marker_color="#6FCFCF",
+            hovertemplate="%{x|%Y-%m}<br>%{y:,.0f}억원<extra></extra>",
+        ))
+        fig_con.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=10),
+            margin=dict(l=30, r=10, t=20, b=20), height=220,
+            xaxis=dict(showgrid=False),
+            yaxis=dict(gridcolor="rgba(128,128,128,0.1)"),
+        )
+        st.plotly_chart(fig_con, use_container_width=True)
+    else:
+        st.markdown(
+            "<div style='background:#111;border:1px solid #2A2A2A;border-radius:4px;"
+            "padding:12px 16px;margin-top:8px;'>"
+            "<span style='font-size:0.8rem;'>건설수주 통계 활성화: "
+            "<code style='color:#F0C040;'>KOSIS_API_KEY</code> 환경변수 설정 필요 "
+            "(<a href='https://kosis.kr' style='color:#6FCFCF;'>kosis.kr</a> 무료 가입)</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── 데이터 소스 안내 ─────────────────────────────────────────────────────
+    with st.expander("데이터 소스 및 해석 주의사항"):
+        st.markdown("""
+**지표 목록** (FinanceDataReader / Yahoo Finance, API 키 불필요)
+| 카테고리 | 지표 | 심볼 | 용도 |
+|---|---|---|---|
+| 글로벌 지수 | S&P 500 / NASDAQ / 다우 | ^GSPC / ^IXIC / ^DJI | 미국 증시 전반 |
+| 글로벌 지수 | DAX / 니케이 / FTSE / 항셍 | ^GDAXI / ^N225 / ^FTSE / ^HSI | 유럽·아시아 |
+| 국내 지수 | KOSPI / KOSDAQ | KS11 / KQ11 | 국내 시장 심리 |
+| 원자재 | WTI / 금 / 은 / 구리 | CL=F / GC=F / SI=F / HG=F | 인플레·수요 선행 |
+| 채권·금리 | 미국 10Y / 2Y | ^TNX / ^IRX | 할인율·경기침체 시그널 |
+| 환율·공포 | 원달러 / VIX | USD/KRW / ^VIX | 안전자산 선호도 |
+| 해운 | BDI (발틱건화물지수) | BDI | 글로벌 교역량 선행 |
+
+**반등 신호 기준**
+- RSI(14) < 30: 과매도 → 반등 후보 (점수 +3)
+- RSI(14) < 40: 약한 과매도 → 관심 (점수 +2)
+- 52주 고점 대비 -30% 이하: 깊은 조정 (점수 +2)
+- MA200 대비 -15% 이하: 장기 평균 대폭 하회 (점수 +1)
+- MA20이 최근 10일 내 MA50 돌파: 단기 황금 크로스 (점수 +1)
+
+**추가 지표** (API 키 필요)
+- **ECOS** (한국은행): 기준금리 시계열
+- **KOSIS** (통계청): 건설수주 월별 추이
+
+**주의사항**
+- 매크로 신호는 참고용이며 종목 스코어링에 반영되지 않습니다.
+- 기술적 지표 하나만으로 투자 판단 금지 — 복수 신호 교차 확인 필수.
+- BDI는 stooq 소스 — 일부 날짜 공백 발생 가능.
+        """)
 
 
 if __name__ == "__main__":

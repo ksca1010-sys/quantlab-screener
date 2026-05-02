@@ -201,3 +201,64 @@ def get_market_cap(code: str, date_str: str) -> float:
 
 def _years_ago(n: int) -> str:
     return (date.today() - timedelta(days=365 * n)).strftime("%Y%m%d")
+
+
+@lru_cache(maxsize=256)
+def get_contract_liabilities_ratio(code: str, as_of_date: str) -> float:
+    """
+    DART 재무제표에서 계약부채(선수금) / 매출액 비율 반환.
+    백로그 강도 지표 — 높을수록 향후 매출이 이미 확보된 상태.
+    조선·방산·건설·IT서비스 등 수주 기반 업종에서 유의미.
+    데이터 미확보 시 NaN 반환 (허수 없음).
+    """
+    nan = float("nan")
+    try:
+        df = get_financial_data(code, as_of_date)
+        if df.empty or "bsns_year" not in df.columns:
+            return nan
+
+        latest = df[df["bsns_year"] == df["bsns_year"].max()].copy()
+
+        def _extract(sj_divs: tuple, nm_patterns: list, id_patterns: list) -> float:
+            sub = (
+                latest[latest["sj_div"].isin(sj_divs)]
+                if "sj_div" in latest.columns
+                else latest
+            )
+            if "account_id" in sub.columns:
+                for pat in id_patterns:
+                    rows = sub[sub["account_id"].str.contains(pat, na=False, case=False)]
+                    if not rows.empty:
+                        try:
+                            return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
+                        except Exception:
+                            pass
+            if "account_nm" in sub.columns:
+                for pat in nm_patterns:
+                    exact = sub[sub["account_nm"] == pat]
+                    rows = exact if not exact.empty else sub[sub["account_nm"].str.contains(pat, na=False)]
+                    if not rows.empty:
+                        try:
+                            return float(str(rows["thstrm_amount"].iloc[0]).replace(",", ""))
+                        except Exception:
+                            pass
+            return nan
+
+        contract_liabilities = _extract(
+            sj_divs=("BS",),
+            nm_patterns=["계약부채", "선수금"],
+            id_patterns=["ContractLiabilities", "AdvancesFromCustomers"],
+        )
+        revenue = _extract(
+            sj_divs=("IS", "CIS"),
+            nm_patterns=["매출액", "영업수익"],
+            id_patterns=["Revenue", "Sales"],
+        )
+
+        if pd.isna(contract_liabilities) or pd.isna(revenue) or revenue <= 0:
+            return nan
+        return contract_liabilities / revenue  # 0.5 = 매출의 50%가 이미 수주 확보
+
+    except Exception as e:
+        logger.debug("[%s] 계약부채 조회 실패: %s", code, e)
+        return float("nan")
