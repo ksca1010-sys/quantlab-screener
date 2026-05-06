@@ -709,6 +709,13 @@ def _get_price_history(code: str) -> pd.DataFrame:
     return get_price_data(code, start, end)
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _get_financial_statement_review(code: str) -> dict:
+    from src.financial_analysis import get_financial_statement_review
+    as_of_date = pd.Timestamp.today().strftime("%Y-%m-%d")
+    return get_financial_statement_review(code, as_of_date)
+
+
 _SECTOR_CACHE_PATH = Path(__file__).parent.parent / "output" / ".sector_strength_cache.json"
 _SECTOR_CACHE_TTL  = 1800  # 30분
 
@@ -1006,6 +1013,86 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
         legend=dict(orientation="h", y=1.08, font=dict(size=9)),
     )
     return fig
+
+
+def _render_financial_statement_section(code: str, name: str) -> None:
+    """DART 기반 재무제표와 사업보고서 검토 섹션."""
+    st.markdown("#### 재무제표·사업보고서 분석")
+    st.caption("출처: DART 사업보고서/재무제표. 45일 공시 시차 룰을 적용해 분석 시점보다 45일 이전 접수 자료만 사용합니다.")
+
+    try:
+        with st.spinner("DART 재무제표와 사업보고서 조회 중..."):
+            review = _get_financial_statement_review(code)
+    except Exception as e:
+        st.info(f"DART 데이터를 불러오지 못했습니다: {e}")
+        return
+
+    fin = review.get("financials", {})
+    biz = review.get("business", {})
+
+    if not fin.get("available"):
+        st.info(fin.get("reason", "재무제표 데이터가 없습니다."))
+    else:
+        summary = fin.get("summary", {})
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("매출 YoY", _fmt_metric_pct(summary.get("revenue_yoy")))
+        metric_cols[1].metric("매출 CAGR", _fmt_metric_pct(summary.get("revenue_cagr")))
+        metric_cols[2].metric("영업이익 YoY", _fmt_metric_pct(summary.get("operating_income_yoy")))
+        metric_cols[3].metric("순이익 YoY", _fmt_metric_pct(summary.get("net_income_yoy")))
+
+        annual_df = pd.DataFrame(fin.get("annual", []))
+        ratio_df = pd.DataFrame(fin.get("ratios", []))
+        if not annual_df.empty:
+            st.markdown("**3개년 주요 재무제표**")
+            st.dataframe(annual_df, use_container_width=True, hide_index=True)
+        if not ratio_df.empty:
+            st.markdown("**수익성·안정성 비율**")
+            st.dataframe(ratio_df, use_container_width=True, hide_index=True)
+
+        comments = fin.get("comments", [])
+        if comments:
+            st.markdown("**재무제표 해석**")
+            for comment in comments:
+                st.markdown(
+                    f"<div style='border-left:3px solid #F0C040;padding:7px 10px;"
+                    f"margin:4px 0;background:rgba(240,192,64,0.06);border-radius:0 2px 2px 0;'>"
+                    f"{comment}</div>",
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown("**사업계획·사업보고서 검토 포인트**")
+    if not biz.get("available"):
+        st.caption(biz.get("reason", "사업보고서 섹션을 찾지 못했습니다."))
+    else:
+        st.caption(
+            f"{biz.get('report_name', '사업보고서')} · 접수일 {biz.get('rcept_dt', '—')} · "
+            f"공시 cutoff {biz.get('cutoff', '—')}"
+        )
+        sections = biz.get("sections", [])
+        if sections:
+            for section in sections:
+                title = section.get("title", "DART 섹션")
+                url = section.get("url", "")
+                if url:
+                    st.markdown(f"- [{title}]({url})")
+                else:
+                    st.markdown(f"- {title}")
+        else:
+            st.caption("사업보고서 원문 섹션 링크를 찾지 못했습니다.")
+
+    st.markdown(
+        "- 사업계획은 원문 기반으로 매출처 집중도, 수주잔고, CAPEX/생산능력, 연구개발비, 신규 제품 일정을 확인해야 합니다.\n"
+        "- 위 재무 코멘트는 공시 숫자 기반의 정량 해석이며, 사업계획 원문을 대체하지 않습니다."
+    )
+
+
+def _fmt_metric_pct(value) -> str:
+    try:
+        if pd.isna(value):
+            return "—"
+        return f"{float(value):+.1f}%"
+    except Exception:
+        return "—"
 
 
 def _show_company_overview(row: pd.Series, grade_thresholds: tuple) -> None:
@@ -1306,6 +1393,10 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         st.caption(f"섹터: {sector} · 비교 표본 {sector_val.get('n', 0)}개 종목 · 출처: Naver Finance · 30분 캐시")
     except Exception as e:
         st.warning(f"밸류에이션 조회 실패: {e}")
+
+    st.markdown("---")
+
+    _render_financial_statement_section(code, name)
 
     st.markdown("---")
 
