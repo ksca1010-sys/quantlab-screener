@@ -13,7 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from src.normalizer import clip_score, minmax_scale
+from src.normalizer import clip_score, sector_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,20 @@ def score_trend(
     """
     codes = universe["code"].tolist()
 
-    s1 = _ma_strength_score(codes, price_data)   # 0~30: MA 갭 연속 강도
-    s2 = _high52w_score(codes, price_data)        # 0~25: 52주 신고가 위치
-    s3 = _volume_trend_score(codes, price_data)   # 0~25: 거래량 추세
-    s4 = _momentum_score(codes, price_data)       # 0~20: 12-1개월 수익률 모멘텀
+    sector_map = universe.set_index("code")["sector"] if "sector" in universe.columns else pd.Series("기타", index=codes)
+
+    def _sector_score(raw: pd.Series, upper: float) -> pd.Series:
+        work = pd.DataFrame({
+            "code": codes,
+            "sector": sector_map.reindex(codes).fillna("기타").values,
+            "value": raw.reindex(codes),
+        }).set_index("code")
+        return sector_percentile(work, "value", ascending=True).reindex(codes).fillna(0) * upper
+
+    s1 = _sector_score(_ma_strength_raw(codes, price_data), 30)   # MA 갭 연속 강도
+    s2 = _sector_score(_high52w_raw(codes, price_data), 25)        # 52주 신고가 위치
+    s3 = _sector_score(_volume_trend_raw(codes, price_data), 25)   # 거래량 추세
+    s4 = _sector_score(_momentum_raw(codes, price_data), 20)       # 12-1개월 수익률 모멘텀
 
     total = s1 + s2 + s3 + s4  # 0~100
     result = clip_score(total)
@@ -39,8 +49,8 @@ def score_trend(
     return result
 
 
-def _ma_strength_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
-    """MA 갭 비율 연속 강도 → 0~30점.
+def _ma_strength_raw(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
+    """MA 갭 비율 연속 강도 raw 값.
 
     MA20/MA60 갭 + MA60/MA120 갭을 합산한 연속값으로 추세 강도를 측정.
     양수 = 정배열(강세), 음수 = 역배열(약세). 이진/삼진 점수의 정보 손실 해소.
@@ -61,30 +71,29 @@ def _ma_strength_score(codes: list[str], price_data: dict[str, pd.DataFrame]) ->
         gap_short = (ma20 / ma60 - 1) * 100    # MA20 vs MA60 갭 (%)
         gap_long  = (ma60 / ma120 - 1) * 100   # MA60 vs MA120 갭 (%)
         scores[code] = gap_short + gap_long
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-20, 20), lower=0, upper=30).fillna(0).rename(None)
+    return pd.Series(scores).clip(-20, 20).rename(None)
 
 
-def _high52w_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
-    """52주 신고가 대비 현재가 위치 → 0~25점."""
+def _high52w_raw(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
+    """52주 신고가 대비 현재가 위치 raw 값."""
     scores: dict[str, float] = {}
     for code in codes:
         df = price_data.get(code, pd.DataFrame())
         if df.empty or "Close" not in df.columns or len(df) < 20:
-            scores[code] = 0.0
+            scores[code] = np.nan
             continue
         close = df["Close"].dropna()
         last   = close.iloc[-1]
         high52 = close.iloc[-min(252, len(close)):].max()
         if high52 <= 0:
-            scores[code] = 0.0
+            scores[code] = np.nan
             continue
-        scores[code] = (last / high52) * 25
-    return pd.Series(scores)
+        scores[code] = (last / high52) * 100
+    return pd.Series(scores).clip(0, 100).rename(None)
 
 
-def _volume_trend_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
-    """거래량 추세 (최근 20일 평균 / 과거 60일 평균) → 0~25점."""
+def _volume_trend_raw(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
+    """거래량 추세 raw 값 (최근 20일 평균 / 과거 60일 평균)."""
     scores: dict[str, float] = {}
     for code in codes:
         df = price_data.get(code, pd.DataFrame())
@@ -98,12 +107,11 @@ def _volume_trend_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -
             scores[code] = np.nan
             continue
         scores[code] = avg20 / avg60
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(0, 3), lower=0, upper=25).fillna(0).rename(None)
+    return pd.Series(scores).clip(0, 3).rename(None)
 
 
-def _momentum_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
-    """12-1개월 수익률 모멘텀 (직전 1개월 제외) → 0~20점.
+def _momentum_raw(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd.Series:
+    """12-1개월 수익률 모멘텀 raw 값 (직전 1개월 제외).
 
     학술 표준 Carhart(1997) 모멘텀: t-12 ~ t-1 구간 수익률.
     직전 1개월을 제외하는 이유: 단기 반전(short-term reversal) 효과 배제.
@@ -113,17 +121,16 @@ def _momentum_score(codes: list[str], price_data: dict[str, pd.DataFrame]) -> pd
     for code in codes:
         df = price_data.get(code, pd.DataFrame())
         if df.empty or "Close" not in df.columns:
-            scores[code] = 0.0
+            scores[code] = np.nan
             continue
         close = df["Close"].dropna()
         if len(close) < 252:
-            scores[code] = 0.0
+            scores[code] = np.nan
             continue
         p_start = float(close.iloc[-252])  # 약 12개월 전
         p_end   = float(close.iloc[-21])   # 약 1개월 전
         if p_start <= 0:
-            scores[code] = 0.0
+            scores[code] = np.nan
             continue
         scores[code] = (p_end - p_start) / p_start * 100
-    raw = pd.Series(scores)
-    return minmax_scale(raw.clip(-50, 100), lower=0, upper=20).fillna(0).rename(None)
+    return pd.Series(scores).clip(-50, 100).rename(None)

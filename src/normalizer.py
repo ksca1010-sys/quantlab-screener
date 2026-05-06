@@ -7,9 +7,6 @@ import numpy as np
 import pandas as pd
 
 
-_MIN_SECTOR_SIZE = 5  # 섹터 최소 종목 수 — 미만 시 전체 분위수로 fallback
-
-
 def sector_percentile(
     df: pd.DataFrame,
     column: str,
@@ -22,28 +19,16 @@ def sector_percentile(
     - ascending=False: 값이 낮을수록 높은 분위수 (PER, PBR 등 낮을수록 유리)
     - ascending=True: 값이 높을수록 높은 분위수 (ROE, 성장률 등)
 
-    섹터 내 유효 종목 수 < _MIN_SECTOR_SIZE(5)이면 전체 유니버스 분위수로 fallback.
-    절댓값 비교 금지 규칙에 따라 반드시 상대 비교를 유지한다.
+    절댓값 비교 금지 규칙에 따라 전체 유니버스 fallback 없이 섹터 내부에서만 비교한다.
     """
     result = pd.Series(index=df.index, dtype=float)
 
-    # 전체 분위수 (소규모 섹터 fallback용)
-    valid_all = df[column].dropna()
-    global_ranks = valid_all.rank(pct=True, ascending=ascending) if not valid_all.empty else pd.Series(dtype=float)
-
-    small_idx: list = []
     for sector, group in df.groupby(sector_col):
         valid = group[column].dropna()
         if valid.empty:
             continue
-        if len(valid) < _MIN_SECTOR_SIZE:
-            small_idx.extend(valid.index.tolist())
-        else:
-            ranks = valid.rank(pct=True, ascending=ascending)
-            result.loc[ranks.index] = ranks
-
-    if small_idx and not global_ranks.empty:
-        result.loc[small_idx] = global_ranks.reindex(small_idx)
+        ranks = valid.rank(pct=True, ascending=ascending)
+        result.loc[ranks.index] = ranks
 
     return result
 

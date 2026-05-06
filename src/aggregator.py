@@ -15,8 +15,8 @@ def aggregate(
     risk: pd.Series,
 ) -> pd.DataFrame:
     """
-    5축 점수를 동일 가중 평균으로 합산.
-    TotalScore = 0.20 × (Growth + Value + Quality + Trend + Risk)
+    4축 점수를 동일 가중 평균으로 합산. Risk는 보조지표로만 보존한다.
+    TotalScore = 0.25 × (Growth + Value + Quality + Trend)
     """
     df = universe[["code", "name", "market", "sector", "market_cap"]].copy()
     df = df.set_index("code")
@@ -27,16 +27,11 @@ def aggregate(
     df["Trend"]   = pd.to_numeric(trend.reindex(df.index),   errors="coerce").fillna(0).round(2)
     df["Risk"]    = pd.to_numeric(risk.reindex(df.index),    errors="coerce").fillna(0).round(2)
 
-    # 백테스트 IC 기반 가중치 (2026-04-30 검증)
-    # Trend IC_6M=0.119(IR=1.497) 가장 강함 → 28%
-    # Value 학술 근거 강함(Fama-French) → 25%
-    # Growth IC 미검증 + 학술적으로 가장 약한 팩터 → 12%
     df["Total"] = (
-        0.12 * df["Growth"]
+        0.25 * df["Growth"]
         + 0.25 * df["Value"]
-        + 0.18 * df["Quality"]
-        + 0.28 * df["Trend"]
-        + 0.17 * df["Risk"]
+        + 0.25 * df["Quality"]
+        + 0.25 * df["Trend"]
     ).round(2)
 
     df = df.sort_values("Total", ascending=False).reset_index()

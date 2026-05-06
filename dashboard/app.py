@@ -24,7 +24,7 @@ st.set_page_config(
 
 CSV_PATH = Path(__file__).parent.parent / "output" / "stocks_top100.csv"
 
-AXES = ["Growth", "Value", "Quality", "Trend", "Risk"]
+AXES = ["Growth", "Value", "Quality", "Trend"]
 AXIS_LABELS = {"Growth": "성장", "Value": "가치", "Quality": "펀더멘털", "Trend": "추세", "Risk": "리스크"}
 AXIS_COLORS = {
     "Growth":  "#38B26B",   # terminal green
@@ -562,15 +562,14 @@ def compute_grade_thresholds(df: pd.DataFrame) -> tuple[float, float, float]:
 
 
 def data_quality_label(row: pd.Series) -> str:
-    """축별 실데이터 비율 표시 (0점 = 데이터 미확보). 5축 기준."""
+    """축별 실데이터 비율 표시 (0점 = 데이터 미확보). 4축 기준."""
     real = sum([
         row["Growth"] > 0,
         row["Value"] > 0,
         row["Quality"] > 0,
         True,  # Trend 항상 유효 (가격 데이터)
-        True,  # Risk 항상 유효 (가격 데이터)
     ])
-    return {5: "●●●●●", 4: "●●●●○", 3: "●●●○○", 2: "●●○○○", 1: "●○○○○"}.get(real, "?????")
+    return {4: "●●●●", 3: "●●●○", 2: "●●○○", 1: "●○○○"}.get(real, "????")
 
 
 # ── 차트 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -677,7 +676,7 @@ def market_commentary(df: pd.DataFrame) -> str:
         f"| 가치 | **{avg_value:.1f}점** |",
         f"| 펀더멘털 | **{avg_quality:.1f}점** |",
         f"| 추세 | **{avg_trend:.1f}점** |",
-        f"| 리스크 | **{avg_risk:.1f}점** |",
+        *([f"| 리스크(보조) | **{avg_risk:.1f}점** |"] if "Risk" in df.columns else []),
         "",
         f"- 최우수 등급 **{strong_count}개**, 우수 등급 **{good_count}개**",
         f"- Value 데이터 확보율: **{value_ok_pct:.0f}%** | Quality 확보율: **{quality_ok_pct:.0f}%** (pykrx·DART 제공 기준)",
@@ -983,7 +982,7 @@ def _price_chart(price_df: pd.DataFrame, name: str) -> "go.Figure | None":
 
 
 def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
-    """5축 점수 vs 유니버스 평균 그룹 바 차트."""
+    """4축 점수 vs 유니버스 평균 그룹 바 차트."""
     labels = [AXIS_LABELS[a] for a in AXES]
     scores = [float(row[a]) for a in AXES]
     avgs   = [float(df_univ[a].mean()) for a in AXES]
@@ -1002,7 +1001,7 @@ def _score_comparison_chart(row: pd.Series, df_univ: pd.DataFrame) -> go.Figure:
     base = {k: v for k, v in PLOTLY_BASE.items() if k != "height"}
     fig.update_layout(
         **base, barmode="group", height=260,
-        title="5축 점수 vs 유니버스 평균",
+        title="4축 점수 vs 유니버스 평균",
         yaxis=dict(range=[0, 120], gridcolor="rgba(128,128,128,0.1)"),
         legend=dict(orientation="h", y=1.08, font=dict(size=9)),
     )
@@ -1062,7 +1061,7 @@ def _show_stock_dialog(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
 
 def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFrame,
                          grade_thresholds: tuple, sector_info: dict | None = None) -> None:
-    """5축 종목 분析 인라인 렌더링 (Tab2 직접 호출 / dialog 래퍼 공유)."""
+    """4축 종목 분석 인라인 렌더링 (Tab2 직접 호출 / dialog 래퍼 공유)."""
     code  = str(row["code"])
     name  = str(row["name"])
     total = float(row["Total"])
@@ -1219,7 +1218,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     except Exception as _pe:
         st.warning(f"주가 차트 오류: {_pe}")
 
-    # 레이더 + 5축 점수
+    # 레이더 + 4축 점수
     compare_options = ["없음"] + [o for o in options if f"({code})" not in o]
     st.caption("비교 종목 (선택사항)")
     sel_compare = st.selectbox("비교 종목 선택", compare_options, key="dlg_compare",
@@ -1233,8 +1232,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     # 레이더 차트 — 풀 너비 (모바일 @media 컬럼 스택 적용)
     st.plotly_chart(radar_chart(row, name, row2, name2), use_container_width=True)
 
-    # 5축 점수 — 레이더 아래 전체 너비
-    st.markdown(f"#### {name} 5축 점수")
+    # 4축 점수 — 레이더 아래 전체 너비
+    st.markdown(f"#### {name} 4축 점수")
     for axis in AXES:
         val = float(row[axis])
         st.markdown(
@@ -1396,7 +1395,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     st.markdown("---")
 
     # 유니버스 포지셔닝 바 차트
-    st.markdown("**유니버스 포지셔닝 — 5축 점수 비교**")
+    st.markdown("**유니버스 포지셔닝 — 4축 점수 비교**")
     try:
         st.plotly_chart(_score_comparison_chart(row, df_univ), use_container_width=True)
     except Exception:
@@ -1429,9 +1428,9 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
                     unsafe_allow_html=True,
                 )
 
-    # 5축 선별 근거 상세
-    st.markdown("**📝 5축 선별 근거 상세**")
-    _kor_to_eng2 = {"성장": "Growth", "가치": "Value", "펀더멘털": "Quality", "추세": "Trend", "리스크": "Risk"}
+    # 4축 선별 근거 상세
+    st.markdown("**📝 4축 선별 근거 상세**")
+    _kor_to_eng2 = {"성장": "Growth", "가치": "Value", "펀더멘털": "Quality", "추세": "Trend"}
     try:
         reasons = explain_stock(code, fdf.reset_index())
     except Exception as _ex:
@@ -1638,7 +1637,7 @@ def main() -> None:
         st.markdown(
             "<div class='sidebar-brand' style='padding:16px 0 8px;'>"
             "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>QuantLab Screener</div>"
-            "<div style='font-size:0.875rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 5축 스코어링</div>"
+            "<div style='font-size:0.875rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 4축 스코어링</div>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -1812,7 +1811,7 @@ def main() -> None:
             <span style="font-size:clamp(1.4rem,4vw,2.2rem);font-weight:800;letter-spacing:-0.03em;">
               QuantLab Screener</span>
             <span style="font-size:0.875rem;color:#6A6050;word-break:keep-all;">
-              KOSPI·KOSDAQ 시총 상위 100개 · 5축 스코어링</span>
+              KOSPI·KOSDAQ 시총 상위 100개 · 4축 스코어링</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span style="background:rgba(240,192,64,0.10);border:1px solid #B8922E;
@@ -1952,7 +1951,9 @@ def main() -> None:
                         )
 
             base_cols = ["name", "code", "market", "sector",
-                         "Growth", "Value", "Quality", "Trend", "Risk", "Total"]
+                         "Growth", "Value", "Quality", "Trend", "Total"]
+            if "Risk" in fdf.columns:
+                base_cols.insert(-1, "Risk")
             extra_cols = [c for c in ["RSI", "week52_pos", "entry_signal"] if c in fdf.columns]
             display = (
                 fdf.reset_index()[base_cols + extra_cols]
@@ -1972,7 +1973,8 @@ def main() -> None:
                 lambda x: f"⚪ {x:.1f}" if abs(x - 50.0) < 0.1 else f"{color_score(x)} {x:.1f}"
             )
             display["추세"] = display["Trend"].apply(lambda x: f"{color_score(x)} {x:.1f}")
-            display["리스크"] = display["Risk"].apply(lambda x: f"{color_score(x)} {x:.1f}")
+            if "Risk" in display.columns:
+                display["리스크"] = display["Risk"].apply(lambda x: f"{color_score(x)} {x:.1f}")
             display["등급"] = display["Total"].apply(
                 lambda x: investment_grade(x, grade_thresholds)
             )
@@ -1987,7 +1989,10 @@ def main() -> None:
             if "week52_pos" in display.columns:
                 display["52주위치"] = display["week52_pos"].apply(lambda x: f"{x:.0f}%" if pd.notna(x) else "—")
 
-            show_cols = ["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세", "리스크", "Total", "등급"]
+            show_cols = ["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세"]
+            if "리스크" in display.columns:
+                show_cols += ["리스크"]
+            show_cols += ["Total", "등급"]
             if "진입신호" in display.columns:
                 show_cols += ["진입신호", "RSI", "52주위치"]
             show_cols += ["데이터"]

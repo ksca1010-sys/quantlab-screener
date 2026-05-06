@@ -7,7 +7,7 @@ import logging
 
 import pandas as pd
 
-from src.normalizer import clip_score, minmax_scale, sector_percentile
+from src.normalizer import clip_score, sector_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -38,39 +38,44 @@ def score_quality(
 
 
 def _roe_score(df: pd.DataFrame) -> pd.Series:
-    """ROE (%) 섹터 분위수 → 0~30점. 섹터 없으면 전체 minmax 폴백. NaN → 0점."""
+    """ROE (%) 섹터 분위수 → 0~30점. NaN → 0점."""
     if "roe" not in df.columns:
         return pd.Series(0.0, index=df.index)
     work = df.copy()
     work["roe"] = pd.to_numeric(work["roe"], errors="coerce").clip(-50, 100)
-    if "sector" in work.columns:
-        return (sector_percentile(work, "roe", ascending=True).fillna(0) * 30).rename(None)
-    return minmax_scale(work["roe"], lower=0, upper=30).fillna(0).rename(None)
+    if "sector" not in work.columns:
+        work["sector"] = "기타"
+    return (sector_percentile(work, "roe", ascending=True).fillna(0) * 30).rename(None)
 
 
 def _op_margin_score(df: pd.DataFrame) -> pd.Series:
-    """영업이익률 (%) 섹터 분위수 → 0~25점. 섹터 없으면 전체 minmax 폴백. NaN → 0점."""
+    """영업이익률 (%) 섹터 분위수 → 0~25점. NaN → 0점."""
     if "operating_margin" not in df.columns:
         return pd.Series(0.0, index=df.index)
     work = df.copy()
     work["operating_margin"] = pd.to_numeric(work["operating_margin"], errors="coerce").clip(-50, 80)
-    if "sector" in work.columns:
-        return (sector_percentile(work, "operating_margin", ascending=True).fillna(0) * 25).rename(None)
-    return minmax_scale(work["operating_margin"], lower=0, upper=25).fillna(0).rename(None)
+    if "sector" not in work.columns:
+        work["sector"] = "기타"
+    return (sector_percentile(work, "operating_margin", ascending=True).fillna(0) * 25).rename(None)
 
 
 def _debt_ratio_score(df: pd.DataFrame) -> pd.Series:
-    """부채비율 역수: 낮을수록 좋음 → 0~25점. NaN은 0점 (허수 가정 금지)."""
+    """부채비율 섹터 분위수: 낮을수록 좋음 → 0~25점. NaN은 0점."""
     if "debt_ratio" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    ratio = pd.to_numeric(df["debt_ratio"], errors="coerce").clip(0, 1000)
-    inv = 1 / (1 + ratio)  # NaN 유지
-    return minmax_scale(inv, lower=0, upper=25).fillna(0).rename(None)
+    work = df.copy()
+    work["debt_ratio"] = pd.to_numeric(work["debt_ratio"], errors="coerce").clip(0, 1000)
+    if "sector" not in work.columns:
+        work["sector"] = "기타"
+    return (sector_percentile(work, "debt_ratio", ascending=False).fillna(0) * 25).rename(None)
 
 
 def _interest_coverage_score(df: pd.DataFrame) -> pd.Series:
-    """이자보상배율 높을수록 좋음 → 0~20점. NaN은 0점."""
+    """이자보상배율 섹터 분위수: 높을수록 좋음 → 0~20점. NaN은 0점."""
     if "interest_coverage" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    ic = pd.to_numeric(df["interest_coverage"], errors="coerce").clip(-10, 100)
-    return minmax_scale(ic, lower=0, upper=20).fillna(0).rename(None)
+    work = df.copy()
+    work["interest_coverage"] = pd.to_numeric(work["interest_coverage"], errors="coerce").clip(-10, 100)
+    if "sector" not in work.columns:
+        work["sector"] = "기타"
+    return (sector_percentile(work, "interest_coverage", ascending=True).fillna(0) * 20).rename(None)

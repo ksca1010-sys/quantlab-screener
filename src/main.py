@@ -263,7 +263,7 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
         market_data = _compute_peg(market_data, financials)
 
     # 5. 스코어링
-    logger.info("[5/6] 5축 스코어링...")
+    logger.info("[5/6] 4축 스코어링 + Risk 보조지표 계산...")
     growth  = score_growth(universe, financials)
     value   = score_value(universe, financials, market_data)
     quality = score_quality(universe, financials, market_data)
@@ -324,7 +324,10 @@ def print_summary(result: pd.DataFrame) -> None:
 
     print("\n상위 10개 종목")
     print("-" * 70)
-    top10 = result.head(10).reset_index()[
+    top10 = result.head(10).reset_index()
+    if "rank" not in top10.columns:
+        top10.insert(0, "rank", range(1, len(top10) + 1))
+    top10 = top10[
         ["rank", "name", "code", "market", "sector", "Growth", "Value", "Quality", "Trend", "Risk", "Total"]
     ]
     print(tabulate(top10, headers="keys", tablefmt="rounded_outline", showindex=False))
@@ -337,7 +340,7 @@ def print_summary(result: pd.DataFrame) -> None:
 
     print("\n다음 단계 제안")
     print("-" * 70)
-    print("  1. pykrx PER/PBR 복구 시 Value/Quality 점수가 더 정확해집니다.")
+    print("  1. Naver/DART 데이터 커버리지 개선 시 Value/Quality 점수가 더 정확해집니다.")
     print("  2. --as-of-date 옵션으로 과거 특정 시점 백테스트가 가능합니다.")
     print("  3. output/stocks_top100.csv 를 스프레드시트로 열어 추가 분석을 권장합니다.")
     print("=" * 70)

@@ -239,13 +239,15 @@ def _make_summary(code: str, df: pd.DataFrame) -> str:
 
 
 def explain_stock(code: str, df: pd.DataFrame) -> dict[str, str]:
-    """종목 한 개의 5축 선별 근거 딕셔너리 반환."""
-    return {
+    """종목 한 개의 4축 선별 근거 딕셔너리 반환."""
+    result = {
         "total":   total_verdict(code, df),
         "growth":  growth_reason(code, df),
         "value":   value_reason(code, df),
         "quality": quality_reason(code, df),
         "trend":   trend_reason(code, df),
-        "risk":    risk_reason(code, df),
         "summary": _make_summary(code, df),
     }
+    if "Risk" in df.columns:
+        result["risk"] = risk_reason(code, df)
+    return result

@@ -7,7 +7,7 @@ import logging
 
 import pandas as pd
 
-from src.normalizer import clip_score, minmax_scale, sector_percentile
+from src.normalizer import clip_score, sector_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +103,9 @@ def _peg_score(df: pd.DataFrame) -> pd.Series:
 
 
 def _dividend_score(df: pd.DataFrame) -> pd.Series:
-    """배당수익률 → 0~15점 (min-max 정규화, upper=15)."""
+    """배당수익률 섹터 분위수 → 0~15점."""
     if "dividend_yield" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    dy = pd.to_numeric(df["dividend_yield"], errors="coerce").clip(0, 10)
-    return minmax_scale(dy, lower=0, upper=15).fillna(0).rename(None)
+    work = df.copy()
+    work["dividend_yield"] = pd.to_numeric(work["dividend_yield"], errors="coerce").clip(0, 10)
+    return (sector_percentile(work, "dividend_yield", ascending=True).fillna(0) * 15).rename(None)

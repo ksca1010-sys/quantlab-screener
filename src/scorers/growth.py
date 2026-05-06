@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from src.normalizer import clip_score, minmax_scale
+from src.normalizer import clip_score, sector_percentile
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +113,22 @@ def score_growth(
     s3 = _eps_cagr(fin)              # 0~25
     s4 = _revenue_acceleration(fin)  # 0~10
 
-    # 가중치별 스케일링 — NaN 유지 (스케일링 후 fillna하여 결측이 동료 순위를 왜곡하지 않도록)
+    sector_map = universe.set_index("code")["sector"] if "sector" in universe.columns else pd.Series("기타", index=codes)
+
+    def _sector_score(raw: pd.Series, upper: float) -> pd.Series:
+        work = pd.DataFrame({
+            "code": codes,
+            "sector": sector_map.reindex(codes).fillna("기타").values,
+            "value": raw.reindex(codes),
+        }).set_index("code")
+        return sector_percentile(work, "value", ascending=True).reindex(codes) * upper
+
+    # 가중치별 섹터 분위수 스케일링 — NaN 유지 (스케일링 후 fillna하여 결측이 동료 순위를 왜곡하지 않도록)
     PARTS = [
-        (minmax_scale(s1.reindex(codes), lower=0, upper=30), 30),
-        (minmax_scale(s2.reindex(codes), lower=0, upper=35), 35),
-        (minmax_scale(s3.reindex(codes), lower=0, upper=25), 25),
-        (minmax_scale(s4.reindex(codes), lower=0, upper=10), 10),
+        (_sector_score(s1, 30), 30),
+        (_sector_score(s2, 35), 35),
+        (_sector_score(s3, 25), 25),
+        (_sector_score(s4, 10), 10),
     ]
     sub_df = pd.DataFrame(
         {f"s{i}": s for i, (s, _) in enumerate(PARTS)}, index=codes
