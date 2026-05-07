@@ -55,9 +55,9 @@ GRADE_CONFIG = {
 PLOTLY_BASE = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=11),
-    margin=dict(l=36, r=12, t=36, b=28),
-    height=300,
+    font=dict(family="-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif", size=13, color="#B6C2D1"),
+    margin=dict(l=48, r=16, t=44, b=36),
+    height=330,
 )
 
 BENCHMARK_PLATFORMS = [
@@ -143,24 +143,27 @@ section[data-testid="stSidebar"] {
 
 /* ── CSS Variables ── */
 :root {
-  --bg-root:    #0A0A0A;
-  --bg-panel:   #111111;
-  --bg-header:  #161616;
-  --border:     #2A2A2A;
-  --border-hi:  #3A3A3A;
-  --amber:      #F0C040;
-  --amber-dim:  #B8922E;
-  --amber-glow: rgba(240,192,64,0.10);
-  --red:        #E03030;
-  --green:      #38B26B;
-  --green-dim:  #1E6B40;
-  --cyan:       #6FCFCF;
-  --text-hi:    #E8E0CC;
-  --text-base:  #9A9278;
-  --text-dim:   #4A4438;
-  --text-label: #6A6050;
+  --bg-root:    #080A0F;
+  --bg-panel:   #10141C;
+  --bg-panel-2: #141A24;
+  --bg-header:  #171E2A;
+  --border:     #263142;
+  --border-hi:  #334155;
+  --blue:       #4DA3FF;
+  --blue-dim:   #2563EB;
+  --amber:      #E9B949;
+  --amber-dim:  #B7791F;
+  --amber-glow: rgba(233,185,73,0.10);
+  --red:        #EF5B5B;
+  --green:      #3DDC97;
+  --green-dim:  #237A57;
+  --cyan:       #70D6FF;
+  --text-hi:    #EEF4FF;
+  --text-base:  #B6C2D1;
+  --text-dim:   #64748B;
+  --text-label: #8794A8;
   --mono:       'Menlo', 'Consolas', 'Monaco', monospace;
-  --sans:       'Noto Sans KR', sans-serif;
+  --sans:       -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   /* legacy compat */
   --bg-card:      rgba(255,255,255,0.03);
   --bg-inset:     rgba(0,0,0,0.15);
@@ -173,23 +176,24 @@ section[data-testid="stSidebar"] {
 /* ── Global ── */
 .stApp {
   background: var(--bg-root) !important;
-  font-family: var(--mono) !important;
+  font-family: var(--sans) !important;
 }
 .stMarkdown, [data-testid="stMetricLabel"],
 [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {
-  font-family: var(--mono) !important;
+  font-family: var(--sans) !important;
 }
 .stMarkdown p, .stMarkdown li {
   font-family: var(--sans) !important;
-  line-height: 1.5;
+  font-size: 0.98rem;
+  line-height: 1.68;
   word-break: keep-all;
   overflow-wrap: break-word;
   color: var(--text-base);
 }
 h1, h2, h3 {
-  font-family: var(--mono) !important;
+  font-family: var(--sans) !important;
   color: var(--text-hi) !important;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 /* ── 상단 여백 ── */
@@ -210,34 +214,35 @@ div[role="tablist"] {
 
 /* ── 메트릭 카드 ── */
 [data-testid="stMetric"] {
-  background: var(--bg-panel);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015)), var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 10px 14px !important;
+  border-radius: 6px;
+  padding: 12px 14px !important;
 }
 [data-testid="stMetricLabel"] {
-  font-size: 0.68rem !important;
+  font-size: 0.74rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
   color: var(--text-label) !important;
+  font-family: var(--mono) !important;
 }
 [data-testid="stMetricValue"] {
-  font-size: 1.4rem !important;
+  font-size: 1.58rem !important;
   font-weight: 600 !important;
-  color: var(--amber) !important;
+  color: var(--text-hi) !important;
   font-family: var(--mono) !important;
 }
 [data-testid="stMetricDelta"] svg { display: none; }
 
 /* ── 사이드바 ── */
 section[data-testid="stSidebar"] {
-  background: #050505 !important;
+  background: #0B0F17 !important;
   border-right: 1px solid var(--border) !important;
 }
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stSlider label {
-  font-size: 0.68rem !important;
+  font-size: 0.74rem !important;
   color: var(--text-label) !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
@@ -253,7 +258,7 @@ section[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] 
   gap: 4px !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-  padding: 6px 10px !important;
+  padding: 8px 11px !important;
   border-radius: 3px !important;
   border: 1px solid transparent !important;
   transition: background 0.12s, border-color 0.12s !important;
@@ -261,26 +266,26 @@ section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
   background: rgba(240,192,64,0.05) !important;
-  border-color: #2A2A2A !important;
+  border-color: var(--border-hi) !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label p {
-  font-size: 0.95rem !important;
+  font-size: 1.02rem !important;
   font-weight: 500 !important;
-  color: #9A9278 !important;
+  color: var(--text-base) !important;
   font-family: var(--mono) !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
   margin: 0 !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover p {
-  color: #E8E0CC !important;
+  color: var(--text-hi) !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
-  background: rgba(240,192,64,0.10) !important;
-  border-color: #B8922E !important;
+  background: rgba(77,163,255,0.12) !important;
+  border-color: var(--blue-dim) !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) p {
-  color: #F0C040 !important;
+  color: var(--blue) !important;
   font-weight: 700 !important;
 }
 /* 라디오 원형 아이콘 숨기기 (골드박스로만 선택 표시) */
@@ -294,7 +299,8 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div {
   border-radius: 2px !important;
   color: var(--text-base) !important;
   font-family: var(--mono) !important;
-  font-size: 0.8rem !important;
+  font-size: 0.9rem !important;
+  min-height: 38px !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
   border-color: var(--amber-dim) !important;
@@ -303,53 +309,58 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
 /* ── 버튼 ── */
 .stButton > button {
   border-radius: 2px !important;
-  font-size: 0.75rem !important;
+  font-size: 0.82rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   font-family: var(--mono) !important;
-  min-height: 36px !important;
+  min-height: 40px !important;
   border: 1px solid var(--border-hi) !important;
   background: var(--bg-panel) !important;
   color: var(--text-base) !important;
   transition: border-color 0.1s, color 0.1s !important;
 }
 .stButton > button:hover {
-  border-color: var(--amber-dim) !important;
-  color: var(--amber) !important;
+  border-color: var(--blue-dim) !important;
+  color: var(--blue) !important;
 }
 .stButton > button[kind="primary"] {
-  background: var(--amber) !important;
-  color: #000 !important;
-  border-color: var(--amber) !important;
+  background: var(--blue) !important;
+  color: #06101E !important;
+  border-color: var(--blue) !important;
   font-weight: 700 !important;
 }
 
 /* ── 데이터프레임 ── */
 [data-testid="stDataFrame"] {
   border: 1px solid var(--border) !important;
-  border-radius: 0 !important;
+  border-radius: 6px !important;
+  overflow: hidden !important;
 }
 [data-testid="stDataFrame"] th {
   background: var(--bg-header) !important;
   font-weight: 700 !important;
-  font-size: 0.7rem !important;
+  font-size: 0.78rem !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   color: var(--text-label) !important;
   font-family: var(--mono) !important;
-  border-bottom: 2px solid var(--amber-dim) !important;
+  border-bottom: 1px solid var(--border-hi) !important;
+}
+[data-testid="stDataFrame"] td {
+  font-size: 0.9rem !important;
+  line-height: 1.55 !important;
 }
 
 /* ── Expander ── */
 [data-testid="stExpander"] {
   border: 1px solid var(--border) !important;
-  border-radius: 2px !important;
+  border-radius: 6px !important;
   background: var(--bg-panel) !important;
 }
 [data-testid="stExpander"] summary {
   font-family: var(--mono) !important;
-  font-size: 0.75rem !important;
+  font-size: 0.92rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
@@ -363,7 +374,8 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
   border-radius: 2px !important;
   color: var(--text-hi) !important;
   font-family: var(--mono) !important;
-  font-size: 0.8rem !important;
+  font-size: 0.92rem !important;
+  min-height: 38px !important;
 }
 [data-testid="stTextInput"] input:focus {
   border-color: var(--amber-dim) !important;
@@ -374,13 +386,22 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
 [data-testid="stDownloadButton"] button {
   border-radius: 2px !important;
   font-family: var(--mono) !important;
-  font-size: 0.7rem !important;
+  font-size: 0.82rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   border: 1px solid var(--border-hi) !important;
   background: var(--bg-panel) !important;
   color: var(--text-base) !important;
+}
+[data-testid="stCaptionContainer"] {
+  color: var(--text-label) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.55 !important;
+}
+[data-testid="stAlert"] {
+  font-size: 0.95rem !important;
+  line-height: 1.55 !important;
 }
 
 /* ── 섹터 강도 툴팁 ── */
@@ -395,7 +416,7 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
   border-radius: 2px;
   padding: 8px 12px;
   min-width: 200px;
-  font-size: 0.75rem;
+  font-size: 0.88rem;
   font-family: var(--mono);
   white-space: nowrap;
   box-shadow: 0 4px 20px rgba(0,0,0,0.7);
@@ -452,22 +473,147 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
 .ql-card-rank { font-size: 0.7rem; color: var(--text-dim); min-width: 22px; text-align: center; }
 .ql-card-body { flex: 1; min-width: 0; }
 .ql-card-name {
-  font-size: 0.9rem; font-weight: 600; color: var(--amber);
+  font-size: 1rem; font-weight: 700; color: var(--amber);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-family: var(--sans) !important;
 }
-.ql-card-sub { font-size: 0.72rem; color: var(--text-label); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.ql-card-sub { font-size: 0.82rem; color: var(--text-label); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
 .ql-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.ql-card-score { font-size: 1.05rem; font-weight: 700; color: var(--text-hi); }
+.ql-card-score { font-size: 1.18rem; font-weight: 800; color: var(--text-hi); }
 .ql-grade-badge {
-  font-size: 0.65rem; font-weight: 700; color: #000;
+  font-size: 0.74rem; font-weight: 700; color: #000;
   padding: 1px 6px; border-radius: 1px; white-space: nowrap;
   font-family: var(--mono) !important; letter-spacing: 0.06em;
 }
 .ql-bull-badge {
-  font-size: 0.65rem; font-weight: 700; color: var(--green);
+  font-size: 0.74rem; font-weight: 700; color: var(--green);
   background: rgba(56,178,107,0.15); border: 1px solid var(--green-dim);
   padding: 1px 6px; border-radius: 1px; white-space: nowrap;
+}
+.ql-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.ql-eyebrow {
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.ql-title {
+  color: var(--text-hi);
+  font-size: clamp(1.85rem, 3vw, 2.7rem);
+  font-weight: 820;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+.ql-subtitle {
+  color: var(--text-label);
+  font-size: 1rem;
+  margin-top: 8px;
+  word-break: keep-all;
+}
+.ql-header-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 520px;
+}
+.ql-pill {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-base);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.ql-pill strong { color: var(--text-hi); }
+.ql-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.ql-kpi-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 13px;
+  min-height: 74px;
+}
+.ql-kpi-label {
+  color: var(--text-label);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.ql-kpi-value {
+  color: var(--text-hi);
+  font-family: var(--mono);
+  font-size: 1.55rem;
+  font-weight: 820;
+  line-height: 1;
+}
+.ql-kpi-note {
+  color: var(--text-dim);
+  font-size: 0.84rem;
+  margin-top: 5px;
+}
+.ql-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 10px;
+}
+.ql-section-title {
+  color: var(--text-hi);
+  font-size: 1.22rem;
+  font-weight: 780;
+}
+.ql-section-caption {
+  color: var(--text-label);
+  font-size: 0.92rem;
+  margin-top: 3px;
+}
+.ql-grade-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ql-small-note {
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+.ql-table-header {
+  border: 1px solid var(--border);
+  background: var(--bg-header);
+  border-radius: 6px 6px 0 0;
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+@media (max-width: 1100px) {
+  .ql-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ql-page-header { grid-template-columns: 1fr; }
+  .ql-header-meta { justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+  .ql-kpi-grid { grid-template-columns: 1fr; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -641,12 +787,84 @@ def score_bar(value: float, color: str, max_val: float = 100) -> str:
 
 def color_score(val: float) -> str:
     if val >= 60:
-        return "🟢"
+        return "<span style='color:#3DDC97;'>●</span>"
     elif val >= 40:
-        return "🔵"
+        return "<span style='color:#4DA3FF;'>●</span>"
     elif val >= 20:
-        return "🟡"
-    return "🔴"
+        return "<span style='color:#E9B949;'>●</span>"
+    return "<span style='color:#EF5B5B;'>●</span>"
+
+
+def _fmt_score(value: float) -> str:
+    return f"{float(value):.1f}" if pd.notna(value) else "—"
+
+
+def _render_dashboard_header(df: pd.DataFrame, fdf: pd.DataFrame) -> None:
+    """상단 컨텍스트와 데이터 상태를 한 번에 보여준다."""
+    kospi_cnt = int((df["market"] == "KOSPI").sum())
+    kosdaq_cnt = int((df["market"] == "KOSDAQ").sum())
+    st.markdown(
+        f"""
+        <div class="ql-page-header">
+          <div>
+            <div class="ql-eyebrow">QuantLab Screener</div>
+            <div class="ql-title">국내 주식 정량 스크리닝</div>
+            <div class="ql-subtitle">KOSPI·KOSDAQ 유니버스의 성장, 가치, 펀더멘털, 추세를 업종 상대 기준으로 비교합니다.</div>
+          </div>
+          <div class="ql-header-meta">
+            <span class="ql-pill"><strong>{len(fdf)}</strong> filtered</span>
+            <span class="ql-pill">KOSPI <strong>{kospi_cnt}</strong></span>
+            <span class="ql-pill">KOSDAQ <strong>{kosdaq_cnt}</strong></span>
+            <span class="ql-pill">{_last_updated_relative()}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_kpi_strip(df: pd.DataFrame, fdf: pd.DataFrame, grade_thresholds: tuple[float, float, float]) -> None:
+    """주요 상태 지표를 카드 형태로 표시한다."""
+    top = fdf.sort_values("Total", ascending=False).iloc[0] if not fdf.empty else None
+    avg_total = fdf["Total"].mean() if not fdf.empty else float("nan")
+    best_axis = df[AXES].mean().idxmax() if not df.empty else "Total"
+    t1, _, _ = grade_thresholds
+    elite_count = int((fdf["Total"] >= t1).sum()) if not fdf.empty else 0
+    risk_note = f"{fdf['Risk'].mean():.1f}" if "Risk" in fdf.columns and not fdf.empty else "—"
+    top_name = str(top["name"]) if top is not None else "—"
+    top_score = _fmt_score(top["Total"]) if top is not None else "—"
+    st.markdown(
+        f"""
+        <div class="ql-kpi-grid">
+          <div class="ql-kpi-card">
+            <div class="ql-kpi-label">Top Pick</div>
+            <div class="ql-kpi-value">{top_score}</div>
+            <div class="ql-kpi-note">{top_name}</div>
+          </div>
+          <div class="ql-kpi-card">
+            <div class="ql-kpi-label">Average</div>
+            <div class="ql-kpi-value">{_fmt_score(avg_total)}</div>
+            <div class="ql-kpi-note">필터 종목 평균 종합점수</div>
+          </div>
+          <div class="ql-kpi-card">
+            <div class="ql-kpi-label">Best Axis</div>
+            <div class="ql-kpi-value">{AXIS_LABELS.get(best_axis, best_axis)}</div>
+            <div class="ql-kpi-note">전체 유니버스 평균 기준</div>
+          </div>
+          <div class="ql-kpi-card">
+            <div class="ql-kpi-label">Elite</div>
+            <div class="ql-kpi-value">{elite_count}</div>
+            <div class="ql-kpi-note">최우수 기준 이상</div>
+          </div>
+          <div class="ql-kpi-card">
+            <div class="ql-kpi-label">Risk</div>
+            <div class="ql-kpi-value">{risk_note}</div>
+            <div class="ql-kpi-note">보조지표 평균, 종합 제외</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ── 시장 코멘트 (dynamic, data-driven) ───────────────────────────────────────
@@ -1452,7 +1670,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
                              annotation_text="기준선 (시장과 동일)")
             fig_rs.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#0D0D0D",
-                font=dict(family="monospace", size=10, color="#9A9278"),
+                font=dict(family="monospace", size=12, color="#B6C2D1"),
                 margin=dict(l=50, r=20, t=20, b=30), height=240,
                 xaxis=dict(showgrid=False, tickfont=dict(size=9)),
                 yaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickfont=dict(size=9)),
@@ -1753,8 +1971,8 @@ def main() -> None:
     with st.sidebar:
         st.markdown(
             "<div class='sidebar-brand' style='padding:16px 0 8px;'>"
-            "<div style='font-size:1.6rem;font-weight:800;letter-spacing:-0.02em;'>QuantLab Screener</div>"
-            "<div style='font-size:0.875rem;color:#888;margin-top:5px;'>KOSPI·KOSDAQ 4축 스코어링</div>"
+            "<div style='font-size:1.72rem;font-weight:820;letter-spacing:0;color:#EEF4FF;'>QuantLab Screener</div>"
+            "<div style='font-size:1rem;color:#8794A8;margin-top:7px;line-height:1.45;'>KOSPI·KOSDAQ 4축 스코어링</div>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -1776,7 +1994,7 @@ def main() -> None:
         st.divider()
 
         st.markdown(
-            "<div style='font-size:0.72rem;color:#888;margin-bottom:10px;'>"
+            "<div style='font-size:0.88rem;color:#8794A8;margin-bottom:12px;line-height:1.55;'>"
             f"📅 {_last_updated()}<br>"
             f"<span style='color:#B8922E;'>· {_last_updated_relative()}</span></div>",
             unsafe_allow_html=True,
@@ -1841,7 +2059,7 @@ def main() -> None:
 
         # 섹터 강도 현황 (5일 수익률 기준 자동 갱신)
         st.markdown("<div class='sidebar-sector-strength'>", unsafe_allow_html=True)
-        st.markdown("**📡 섹터 강도** <small style='color:#888;font-size:0.8125rem;'>5일 수익률 기준</small>",
+        st.markdown("**📡 섹터 강도** <small style='color:#8794A8;font-size:0.92rem;'>5일 수익률 기준</small>",
                     unsafe_allow_html=True)
         if sector_info and sector_info.get("sector_returns"):
             _sr = sector_info["sector_returns"]
@@ -1868,12 +2086,12 @@ def main() -> None:
                     _tt_rows = "<div style='color:#888;'>데이터 없음</div>"
                 _rows_html.append(
                     f"<div class='ql-sector-row'>"
-                    f"<div style='display:flex;justify-content:space-between;padding:2px 0;font-size:0.875rem;'>"
+                    f"<div style='display:flex;justify-content:space-between;padding:4px 0;font-size:0.98rem;'>"
                     f"<span style='color:#ccc;'>{_icon} {_sname}</span>"
                     f"<span style='color:{_col};font-weight:700;'>{_sret:+.1f}%</span>"
                     f"</div>"
                     f"<div class='ql-sector-tooltip'>"
-                    f"<div style='color:#aaa;font-size:0.75rem;margin-bottom:4px;'>5일 수익률 상위 종목</div>"
+                    f"<div style='color:#D7E0EA;font-size:0.88rem;margin-bottom:6px;'>5일 수익률 상위 종목</div>"
                     f"{_tt_rows}"
                     f"</div>"
                     f"</div>"
@@ -1925,29 +2143,8 @@ def main() -> None:
         fdf = fdf[fdf["Total"].apply(lambda x: investment_grade(x, grade_thresholds)) == sel_grade]
 
     # ── 헤더 ────────────────────────────────────────────────────────────────────
-    kospi_cnt = int((df["market"] == "KOSPI").sum())
-    kosdaq_cnt = int((df["market"] == "KOSDAQ").sum())
-    st.markdown(
-        f"""<div style="display:flex;flex-direction:column;gap:8px;
-          padding:14px 0 10px;border-bottom:1px solid rgba(128,128,128,0.18);margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
-            <span style="font-size:clamp(1.4rem,4vw,2.2rem);font-weight:800;letter-spacing:-0.03em;">
-              QuantLab Screener</span>
-            <span style="font-size:0.875rem;color:#6A6050;word-break:keep-all;">
-              KOSPI·KOSDAQ 시총 상위 100개 · 4축 스코어링</span>
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span style="background:rgba(240,192,64,0.10);border:1px solid #B8922E;
-              padding:3px 11px;border-radius:2px;font-size:0.75rem;color:#F0C040;font-weight:600;font-family:monospace;">
-              {len(fdf)}개 종목</span>
-            <span style="background:#111111;border:1px solid #2A2A2A;
-              padding:3px 11px;border-radius:2px;font-size:0.75rem;color:#9A9278;font-family:monospace;">
-              KOSPI {kospi_cnt} · KOSDAQ {kosdaq_cnt}</span>
-            <span style="font-size:0.75rem;color:#6A6050;font-family:monospace;">📅 {_last_updated()}</span>
-          </div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
+    _render_dashboard_header(df, fdf)
+    _render_kpi_strip(df, fdf, grade_thresholds)
 
     is_empty = fdf.empty
 
@@ -1955,21 +2152,20 @@ def main() -> None:
     if sel_page == "종목 분석":
         t1, t2, t3 = grade_thresholds
         st.markdown(
-            f"<div style='display:flex;align-items:center;justify-content:space-between;"
-            f"margin-bottom:8px;flex-wrap:wrap;gap:8px;'>"
-            f"<span style='font-size:1.05rem;font-weight:700;'>종목 랭킹 "
-            f"<span style='color:#F0C040;'>{len(fdf)}개</span></span>"
-            f"<div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap;'>"
-            f"<span style='font-size:0.75rem;color:#6A6050;font-family:monospace;'>등급 기준</span>"
+            f"<div class='ql-section-head'>"
+            f"<div><div class='ql-section-title'>종목 랭킹 <span style='color:var(--blue);'>{len(fdf)}개</span></div>"
+            f"<div class='ql-section-caption'>필터 조건에 맞는 종목을 종합점수 기준으로 정렬합니다.</div></div>"
+            f"<div class='ql-grade-strip'>"
+            f"<span class='ql-small-note'>등급 기준</span>"
             f"<span style='background:#1A3A20;color:#38B26B;border:1px solid #1E6B40;padding:3px 9px;border-radius:2px;"
-            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>최우수 ≥{t1:.0f}</span>"
+            f"font-size:0.86rem;font-weight:800;font-family:monospace;text-transform:uppercase;'>최우수 ≥{t1:.0f}</span>"
             f"<span style='background:#162030;color:#6FCFCF;border:1px solid #2A5060;padding:3px 9px;border-radius:2px;"
-            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>우수 ≥{t2:.0f}</span>"
+            f"font-size:0.86rem;font-weight:800;font-family:monospace;text-transform:uppercase;'>우수 ≥{t2:.0f}</span>"
             f"<span style='background:#2A1A00;color:#F0C040;border:1px solid #B8922E;padding:3px 9px;border-radius:2px;"
-            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>보통 ≥{t3:.0f}</span>"
+            f"font-size:0.86rem;font-weight:800;font-family:monospace;text-transform:uppercase;'>보통 ≥{t3:.0f}</span>"
             f"<span style='background:#2A0A0A;color:#E03030;border:1px solid #9B2020;padding:3px 9px;border-radius:2px;"
-            f"font-size:0.75rem;font-weight:700;font-family:monospace;text-transform:uppercase;'>관찰</span>"
-            f"<span style='font-size:0.72rem;color:#4A4438;'>· 정량 스크리닝 결과, 투자 추천 아님</span>"
+            f"font-size:0.86rem;font-weight:800;font-family:monospace;text-transform:uppercase;'>관찰</span>"
+            f"<span class='ql-small-note'>정량 스크리닝 결과, 투자 추천 아님</span>"
             f"</div></div>",
             unsafe_allow_html=True,
         )
@@ -2150,12 +2346,12 @@ def main() -> None:
 div[data-testid="stHorizontalBlock"] button[kind="tertiary"] {
     color: #F0C040 !important;
     padding: 2px 4px !important;
-    font-size: 0.88rem !important;
+    font-size: 1rem !important;
     text-align: left !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    min-height: 44px !important;
+    min-height: 48px !important;
     font-family: 'Noto Sans KR', sans-serif !important;
 }
 div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
@@ -2166,16 +2362,16 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
 
             _hcols = st.columns(_GCOLS)
             for _hc, _hl in zip(_hcols, _GHEADS):
-                _hc.markdown(f"<span style='font-size:0.68rem;font-weight:700;color:#6A6050;font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;'>{_hl}</span>",
+                _hc.markdown(f"<span style='font-size:0.78rem;font-weight:800;color:#8794A8;font-family:monospace;letter-spacing:0.08em;text-transform:uppercase;'>{_hl}</span>",
                              unsafe_allow_html=True)
-            st.markdown("<hr style='margin:3px 0;border-color:#2A2A2A;'>",
+            st.markdown("<hr style='margin:6px 0 8px;border-color:#334155;'>",
                         unsafe_allow_html=True)
 
             # ── 종목 행 렌더링 (종목명 = tertiary 버튼) ──────────────────────
             _grade_colors = {"최우수": "#38B26B", "우수": "#6FCFCF", "보통": "#F0C040", "관찰": "#E03030"}
             for _, _drow in display.iterrows():
                 _rc = st.columns(_GCOLS)
-                _rc[0].markdown(f"<span style='font-size:0.85rem;color:#4A4438;font-family:monospace;'>{_drow['순위']}</span>",
+                _rc[0].markdown(f"<span style='font-size:0.95rem;color:#8794A8;font-family:monospace;'>{_drow['순위']}</span>",
                                 unsafe_allow_html=True)
                 _stock_name = str(_drow["종목"]).split("(")[0].strip()
                 _stock_code = str(_drow["code"])
@@ -2189,38 +2385,38 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                     if not _clicked_row.empty:
                         _show_stock_dialog(_clicked_row.iloc[0], df, fdf, grade_thresholds,
                                            sector_info=sector_info)
-                _rc[2].markdown(f"<span style='font-size:0.82rem;'>{_drow['market']}</span>",
+                _rc[2].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['market']}</span>",
                                 unsafe_allow_html=True)
-                _rc[3].markdown(f"<span style='font-size:0.82rem;'>{_drow['sector']}</span>",
+                _rc[3].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['sector']}</span>",
                                 unsafe_allow_html=True)
-                _rc[4].markdown(f"<span style='font-size:0.82rem;'>{_drow['성장']}</span>",
+                _rc[4].markdown(f"<span style='font-size:0.94rem;'>{_drow['성장']}</span>",
                                 unsafe_allow_html=True)
-                _rc[5].markdown(f"<span style='font-size:0.82rem;'>{_drow['가치']}</span>",
+                _rc[5].markdown(f"<span style='font-size:0.94rem;'>{_drow['가치']}</span>",
                                 unsafe_allow_html=True)
-                _rc[6].markdown(f"<span style='font-size:0.82rem;'>{_drow['펀더멘털']}</span>",
+                _rc[6].markdown(f"<span style='font-size:0.94rem;'>{_drow['펀더멘털']}</span>",
                                 unsafe_allow_html=True)
-                _rc[7].markdown(f"<span style='font-size:0.82rem;'>{_drow['추세']}</span>",
+                _rc[7].markdown(f"<span style='font-size:0.94rem;'>{_drow['추세']}</span>",
                                 unsafe_allow_html=True)
-                _rc[8].markdown(f"<span style='font-size:0.82rem;'>{_drow['리스크']}</span>",
+                _rc[8].markdown(f"<span style='font-size:0.94rem;'>{_drow['리스크']}</span>",
                                 unsafe_allow_html=True)
                 _total_v = float(_drow["Total"])
                 _rc[9].markdown(
-                    f"<span style='font-size:0.85rem;font-weight:700;'>{_total_v:.1f}</span>",
+                    f"<span style='font-size:1rem;font-weight:800;color:#EEF4FF;'>{_total_v:.1f}</span>",
                     unsafe_allow_html=True)
                 _grade = str(_drow["등급"])
                 _gcfg = GRADE_CONFIG.get(_grade, {"bg": "#2A2A2A", "text": "#9A9278", "border": "#3A3A3A"})
                 _gcfg_bg, _gcfg_text, _gcfg_border = _gcfg["bg"], _gcfg["text"], _gcfg["border"]
                 _rc[10].markdown(
-                    f"<span style='background:{_gcfg_bg};color:{_gcfg_text};border:1px solid {_gcfg_border};padding:3px 7px;"
-                    f"border-radius:2px;font-size:0.72rem;font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>{_grade}</span>",
+                    f"<span style='background:{_gcfg_bg};color:{_gcfg_text};border:1px solid {_gcfg_border};padding:4px 8px;"
+                    f"border-radius:3px;font-size:0.82rem;font-weight:800;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>{_grade}</span>",
                     unsafe_allow_html=True)
 
 
     # ── Tab 2: 섹터 현황 ──────────────────────────────────────────────────────
     if sel_page == "섹터 현황":
         st.markdown(
-            "<div style='font-size:1.05rem;font-weight:700;margin-bottom:2px;'>섹터 현황</div>"
-            "<div style='font-size:0.8rem;color:#6A6050;margin-bottom:16px;'>"
+            "<div style='font-size:1.25rem;font-weight:780;margin-bottom:4px;color:#EEF4FF;'>섹터 현황</div>"
+            "<div style='font-size:0.96rem;color:#8794A8;margin-bottom:18px;line-height:1.5;'>"
             "업종별 최근 5일 수익률 · 평균 점수 · 대표 종목</div>",
             unsafe_allow_html=True,
         )
@@ -2290,8 +2486,8 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                         top_html += (
                             f"<div style='display:flex;justify-content:space-between;"
                             f"padding:2px 0;'>"
-                            f"<span style='font-size:0.75rem;color:#9A9278;'>{nm}</span>"
-                            f"<span style='font-size:0.75rem;font-family:monospace;"
+                            f"<span style='font-size:0.9rem;color:#B6C2D1;'>{nm}</span>"
+                            f"<span style='font-size:0.9rem;font-family:monospace;"
                             f"color:{tc};font-weight:600;'>{tr:+.1f}%</span></div>"
                         )
 
@@ -2300,19 +2496,19 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                         f"border-top:3px solid {ret_color};"
                         f"border-radius:4px;padding:14px 16px;margin-bottom:8px;'>"
                         # 섹터명
-                        f"<div style='font-size:0.88rem;font-weight:700;color:#E8E0CC;"
+                        f"<div style='font-size:1.02rem;font-weight:760;color:#E8E0CC;"
                         f"margin-bottom:10px;letter-spacing:0.02em;'>{sec}</div>"
                         # 수익률 + 점수
                         f"<div style='display:flex;justify-content:space-between;"
                         f"align-items:flex-end;margin-bottom:8px;'>"
                         f"<div>"
-                        f"<div style='font-size:0.62rem;color:#6A6050;font-family:monospace;"
+                        f"<div style='font-size:0.78rem;color:#8794A8;font-family:monospace;"
                         f"letter-spacing:0.08em;margin-bottom:2px;'>5일 수익률</div>"
                         f"<div style='font-size:1.4rem;font-weight:800;font-family:monospace;"
                         f"color:{ret_color};line-height:1;'>{ret_str}</div>"
                         f"</div>"
                         f"<div style='text-align:right;'>"
-                        f"<div style='font-size:0.62rem;color:#6A6050;font-family:monospace;"
+                        f"<div style='font-size:0.78rem;color:#8794A8;font-family:monospace;"
                         f"letter-spacing:0.08em;margin-bottom:2px;'>종합 점수</div>"
                         f"<div style='font-size:1.4rem;font-weight:800;font-family:monospace;"
                         f"color:#F0C040;line-height:1;'>{score_str}</div>"
@@ -2333,9 +2529,9 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
 
             # ── 업종별 평균 점수 가로 막대 차트 ──────────────────────────────
             st.markdown(
-                "<div style='font-size:0.85rem;font-weight:700;color:#E8E0CC;"
+                "<div style='font-size:1.05rem;font-weight:760;color:#E8E0CC;"
                 "margin-bottom:8px;'>업종별 평균 종합 점수</div>"
-                "<div style='font-size:0.75rem;color:#6A6050;margin-bottom:12px;'>"
+                "<div style='font-size:0.94rem;color:#8794A8;margin-bottom:14px;'>"
                 "점수가 높을수록 성장·가치·펀더멘털·추세·리스크 종합 평가가 좋은 업종</div>",
                 unsafe_allow_html=True,
             )
@@ -2355,11 +2551,11 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 fig_sec.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="#0D0D0D",
-                    font=dict(family="monospace", size=10, color="#9A9278"),
+                    font=dict(family="monospace", size=12, color="#B6C2D1"),
                     xaxis=dict(gridcolor="rgba(255,255,255,0.05)", range=[0, 80],
-                               title="평균 점수 (0~100)", tickfont=dict(size=9)),
+                               title="평균 점수 (0~100)", tickfont=dict(size=12)),
                     yaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="",
-                               tickfont=dict(size=10)),
+                               tickfont=dict(size=12)),
                     coloraxis_showscale=False,
                     height=max(320, len(sec_avg_df) * 28),
                     margin=dict(l=110, r=16, t=16, b=36),
@@ -2616,12 +2812,12 @@ def _render_macro_tab() -> None:
                 font=dict(family="monospace", size=10, color="#9A9278"),
                 margin=dict(l=50, r=20, t=24, b=40),
                 height=380,
-                xaxis=dict(showgrid=False, tickfont=dict(size=9)),
+                xaxis=dict(showgrid=False, tickfont=dict(size=12, color="#D7E0EA")),
                 yaxis=dict(gridcolor="rgba(255,255,255,0.05)",
                            title="정규화 지수 (시작일=100)",
-                           tickfont=dict(size=9)),
+                           tickfont=dict(size=12, color="#D7E0EA")),
                 legend=dict(orientation="h", y=1.06, x=0,
-                            font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
+                            font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
                 hovermode="x unified",
             )
             st.plotly_chart(fig_cmp, use_container_width=True, theme=None,
@@ -2685,11 +2881,11 @@ def _render_macro_tab() -> None:
                     f"<div style='background:{bg_color};border:1px solid #2A2A2A;"
                     f"border-left:3px solid {txt_color};border-radius:4px;"
                     f"padding:10px 12px;margin-bottom:6px;'>"
-                    f"<div style='font-size:0.65rem;color:#6A6050;font-family:monospace;'>{hr['지표']}</div>"
+                    f"<div style='font-size:0.84rem;color:#8794A8;font-family:monospace;'>{hr['지표']}</div>"
                     f"<div style='font-size:1.0rem;font-weight:700;font-family:monospace;color:{txt_color};'>"
-                    f"{val_str} <span style='font-size:0.7rem;'>{hr['단위']}</span></div>"
-                    f"<div style='font-size:0.7rem;color:{txt_color};font-family:monospace;margin-top:2px;'>{sig}</div>"
-                    f"<div style='font-size:0.65rem;color:#6A6050;font-family:monospace;'>{rsi_str} · {dd_str}</div>"
+                    f"{val_str} <span style='font-size:0.84rem;'>{hr['단위']}</span></div>"
+                    f"<div style='font-size:0.86rem;color:{txt_color};font-family:monospace;margin-top:3px;'>{sig}</div>"
+                    f"<div style='font-size:0.82rem;color:#8794A8;font-family:monospace;'>{rsi_str} · {dd_str}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -2732,7 +2928,7 @@ def _render_macro_tab() -> None:
         color = meta.get("color", "#F0C040")
         try:
             r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
-            fill_color = f"rgba({r},{g},{b},0.12)"
+            fill_color = f"rgba({r},{g},{b},0.18)"
         except Exception:
             fill_color = "rgba(240,192,64,0.12)"
 
@@ -2767,7 +2963,7 @@ def _render_macro_tab() -> None:
         fig.add_trace(go.Scatter(
             x=s.index, y=s.values,
             mode="lines",
-            line=dict(color=color, width=2),
+            line=dict(color=color, width=2.6),
             fill="tozeroy",
             fillcolor=fill_color,
             hovertemplate=f"%{{x|%Y-%m-%d}}<br>%{{y:,.2f}} {unit}<extra></extra>",
@@ -2780,7 +2976,7 @@ def _render_macro_tab() -> None:
             fig.add_trace(go.Scatter(
                 x=ma50.index, y=ma50.values,
                 mode="lines",
-                line=dict(color="#F0C040", width=1.2, dash="dot"),
+                line=dict(color="#E9B949", width=1.7, dash="dot"),
                 name="MA50",
                 hovertemplate="MA50: %{y:,.2f}<extra></extra>",
             ))
@@ -2791,7 +2987,7 @@ def _render_macro_tab() -> None:
             fig.add_trace(go.Scatter(
                 x=ma200.index, y=ma200.values,
                 mode="lines",
-                line=dict(color="#6A6050", width=1.2, dash="dash"),
+                line=dict(color="#94A3B8", width=1.5, dash="dash"),
                 name="MA200",
                 hovertemplate="MA200: %{y:,.2f}<extra></extra>",
             ))
@@ -2858,44 +3054,54 @@ def _render_macro_tab() -> None:
                 x=0.0, y=1.0,
                 xanchor="left", yanchor="bottom",
                 showarrow=False,
-                font=dict(size=9, family="monospace"),
+                font=dict(size=11, family="monospace", color="#B6C2D1"),
                 bgcolor="rgba(0,0,0,0)",
             ))
 
         fig.update_layout(
-            title=dict(text=title_text, font=dict(size=11, family="monospace"), x=0, y=0.97),
+            title=dict(text=title_text, font=dict(size=15, family="monospace", color="#EEF4FF"), x=0, y=0.98),
             showlegend=True,
             legend=dict(
                 orientation="h",
                 x=1, y=1, xanchor="right", yanchor="top",
-                font=dict(size=8, color="#6A6050"),
+                font=dict(size=11, color="#D7E0EA"),
                 bgcolor="rgba(0,0,0,0)",
                 itemsizing="constant",
             ),
             annotations=annotations,
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#0D0D0D",
-            font=dict(family="monospace", size=9, color="#9A9278"),
-            margin=dict(l=48, r=12, t=52, b=28),
+            plot_bgcolor="#0B0F17",
+            font=dict(family="monospace", size=12, color="#D7E0EA"),
+            margin=dict(l=74, r=22, t=64, b=44),
             height=height,
             xaxis=dict(
-                showgrid=False,
-                tickfont=dict(size=8),
-                linecolor="#2A2A2A",
-                tickcolor="#2A2A2A",
+                showgrid=True,
+                gridcolor="rgba(51,65,85,0.35)",
+                tickfont=dict(size=12, color="#D7E0EA"),
+                linecolor="#475569",
+                linewidth=1.4,
+                tickcolor="#64748B",
+                ticks="outside",
+                ticklen=4,
             ),
             yaxis=dict(
-                gridcolor="rgba(255,255,255,0.05)",
-                tickfont=dict(size=8),
+                gridcolor="rgba(71,85,105,0.55)",
+                tickfont=dict(size=13, color="#EEF4FF"),
                 tickformat=",.2f",
-                linecolor="#2A2A2A",
-                zeroline=False,
+                linecolor="#94A3B8",
+                linewidth=1.6,
+                tickcolor="#94A3B8",
+                ticks="outside",
+                ticklen=5,
+                zeroline=True,
+                zerolinecolor="rgba(148,163,184,0.7)",
+                title=dict(text=unit, font=dict(size=12, color="#D7E0EA")),
             ),
             hovermode="x unified",
             hoverlabel=dict(
-                bgcolor="#1A1A1A",
-                bordercolor="#3A3A3A",
-                font=dict(size=10, family="monospace"),
+                bgcolor="#111827",
+                bordercolor="#475569",
+                font=dict(size=12, family="monospace", color="#EEF4FF"),
             ),
         )
         return fig
@@ -2937,7 +3143,7 @@ def _render_macro_tab() -> None:
     _render_category_charts("원자재",          INDICATOR_CATEGORIES["원자재"],     n_cols=3, height=260, expanded=False)
     _render_category_charts("채권·금리",       INDICATOR_CATEGORIES["채권·금리"],   n_cols=2, height=280, expanded=False)
     _render_category_charts("환율",            INDICATOR_CATEGORIES["환율"],       n_cols=3, height=260, expanded=False)
-    _render_category_charts("공포·해운",       INDICATOR_CATEGORIES["공포·해운"],   n_cols=2, height=260, expanded=False)
+    _render_category_charts("공포·해운",       INDICATOR_CATEGORIES["공포·해운"],   n_cols=2, height=310, expanded=False)
     _render_category_charts("암호화폐",        INDICATOR_CATEGORIES["암호화폐"],   n_cols=2, height=280, expanded=False)
     st.markdown("---")
 
@@ -3044,7 +3250,7 @@ def _render_macro_tab() -> None:
 | 원자재 | WTI / 금 / 은 / 구리 | CL=F / GC=F / SI=F / HG=F | 인플레·수요 선행 |
 | 채권·금리 | 미국 10Y / 2Y | ^TNX / ^IRX | 할인율·경기침체 시그널 |
 | 환율·공포 | 원달러 / VIX | USD/KRW / ^VIX | 안전자산 선호도 |
-| 해운 | BDI (발틱건화물지수) | BDI | 글로벌 교역량 선행 |
+| 해운 | BDRY 해운 ETF | BDRY | BDI 원지수 대체 proxy |
 
 **반등 신호 기준**
 - RSI(14) < 30: 과매도 → 반등 후보 (점수 +3)
@@ -3060,7 +3266,7 @@ def _render_macro_tab() -> None:
 **주의사항**
 - 매크로 신호는 참고용이며 종목 스코어링에 반영되지 않습니다.
 - 기술적 지표 하나만으로 투자 판단 금지 — 복수 신호 교차 확인 필수.
-- BDI는 stooq 소스 — 일부 날짜 공백 발생 가능.
+- BDI 원지수 공개 소스가 불안정해 BDRY 해운 ETF를 proxy로 표시합니다.
         """)
 
 

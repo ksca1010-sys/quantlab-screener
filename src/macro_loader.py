@@ -66,7 +66,7 @@ INDICATORS: dict[str, dict] = {
     "BTC":     {"label": "비트코인",       "unit": "USD",     "color": "#F0C040"},
     "ETH":     {"label": "이더리움",       "unit": "USD",     "color": "#6FCFCF"},
     # 해운
-    "BDI":     {"label": "발틱건화물지수", "unit": "pt",      "color": "#9A9278"},
+    "BDI":     {"label": "BDRY 해운 ETF",  "unit": "USD",     "color": "#70D6FF"},
 }
 
 # 카테고리별 지표 그룹
@@ -112,8 +112,8 @@ _FDR_SYMBOLS: dict[str, str] = {
     # 암호화폐
     "BTC":     "BTC-USD",
     "ETH":     "ETH-USD",
-    # 해운
-    "BDI":     "BDI",
+    # 해운: BDI 원지수는 공개 CSV 소스가 불안정해 BDRY ETF를 해운 운임 proxy로 사용한다.
+    "BDI":     "BDRY",
 }
 
 # ── 섹터별 매크로 연관성 ──────────────────────────────────────────────────────
