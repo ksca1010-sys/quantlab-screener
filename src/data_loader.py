@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import date, timedelta
 from functools import lru_cache
@@ -137,15 +138,19 @@ def get_financial_data(code: str, as_of_date: str) -> pd.DataFrame:
     # 예: 2026-04-25 기준 → cutoff = 2026-03-11 → 2025년 연간보고서까지 사용 가능.
     """
     try:
-        # cutoff 연도 계산 (공시 시차 45일 적용)
+        # cutoff 접수일 계산 (공시 시차 45일 적용)
         cutoff_ts = pd.Timestamp(as_of_date) - timedelta(days=45)
-        cutoff_year = cutoff_ts.year
+        cutoff = cutoff_ts.strftime("%Y%m%d")
 
         dart = _dart_client()
+        allowed_years = _annual_report_years_before_cutoff(dart, code, cutoff)
+        if not allowed_years:
+            logger.warning("[%s] 45일 공시 시차 기준 내 연간보고서 없음 (as_of=%s)", code, as_of_date)
+            return pd.DataFrame()
         frames = []
 
-        # 최근 3개년 연간 재무제표 수집
-        for year in range(cutoff_year - 2, cutoff_year + 1):
+        # 최근 3개년 연간 재무제표 수집. 실제 접수일이 cutoff 이하인 사업보고서 연도만 사용한다.
+        for year in allowed_years[-3:]:
             try:
                 time.sleep(_DART_SLEEP)
                 df = dart.finstate_all(code, str(year), reprt_code="11011")
@@ -182,6 +187,30 @@ def get_financial_data(code: str, as_of_date: str) -> pd.DataFrame:
     except Exception as e:
         logger.warning("[%s] 재무 데이터 조회 실패: %s", code, e)
         return pd.DataFrame()
+
+
+def _annual_report_years_before_cutoff(dart, code: str, cutoff: str) -> list[int]:
+    """
+    DART 접수일 기준으로 사용 가능한 사업보고서 사업연도를 찾는다.
+    # 공시 시차 45일 룰: 분석 시점 t에서 t-45일 이전에 실제 접수된 사업보고서만 재무제표 조회 대상으로 삼는다.
+    """
+    start = (pd.Timestamp(cutoff) - pd.DateOffset(years=5)).strftime("%Y%m%d")
+    reports = dart.list(corp=code, start=start, end=cutoff, kind="A", final=True)
+    if reports is None or reports.empty or "report_nm" not in reports.columns:
+        return []
+
+    reports = reports[reports["report_nm"].str.contains("사업보고서", na=False)].copy()
+    if "rcept_dt" in reports.columns:
+        reports = reports[reports["rcept_dt"].astype(str) <= cutoff]
+    if reports.empty:
+        return []
+
+    years: set[int] = set()
+    for report_name in reports["report_nm"].dropna():
+        match = re.search(r"\((\d{4})\.", str(report_name))
+        if match:
+            years.add(int(match.group(1)))
+    return sorted(years)
 
 
 @lru_cache(maxsize=512)

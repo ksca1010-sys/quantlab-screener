@@ -489,6 +489,8 @@ def load_data() -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     # Korean stock codes have leading zeros (005930); zfill(6) restores them after int64 parsing
     df["code"] = df["code"].astype(str).str.zfill(6)
+    if "entry_signal" in df.columns:
+        df["entry_signal"] = df["entry_signal"].replace({"매수유망": "강세후보"})
 
     df = df.reset_index(drop=True)
     df.index = df.index + 1
@@ -529,7 +531,7 @@ def _last_updated_relative() -> str:
     return f"{days // 30}개월 전"
 
 
-# ── 투자등급 (분위 기반 동적 임계값 — 전문가 패널 #3) ──────────────────────────
+# ── 분석등급 (분위 기반 동적 임계값 — 전문가 패널 #3) ──────────────────────────
 def investment_grade(score: float, thresholds: tuple[float, float, float] = (60, 50, 40)) -> str:
     t1, t2, t3 = thresholds
     if score >= t1:
@@ -1040,6 +1042,16 @@ def _render_financial_statement_section(code: str, name: str) -> None:
         metric_cols[2].metric("영업이익 YoY", _fmt_metric_pct(summary.get("operating_income_yoy")))
         metric_cols[3].metric("순이익 YoY", _fmt_metric_pct(summary.get("net_income_yoy")))
 
+        overall_comment = fin.get("overall_comment")
+        if overall_comment:
+            st.markdown("**재무제표 전체 총론**")
+            st.markdown(
+                f"<div style='border-left:3px solid #3BA2FF;padding:9px 11px;"
+                f"margin:6px 0 10px;background:rgba(59,162,255,0.07);border-radius:0 2px 2px 0;'>"
+                f"{overall_comment}</div>",
+                unsafe_allow_html=True,
+            )
+
         annual_df = pd.DataFrame(fin.get("annual", []))
         ratio_df = pd.DataFrame(fin.get("ratios", []))
         if not annual_df.empty:
@@ -1068,8 +1080,22 @@ def _render_financial_statement_section(code: str, name: str) -> None:
             f"{biz.get('report_name', '사업보고서')} · 접수일 {biz.get('rcept_dt', '—')} · "
             f"공시 cutoff {biz.get('cutoff', '—')}"
         )
+        report_brief = biz.get("report_brief", [])
+        if report_brief:
+            st.markdown("**사업보고서 종합 보고자료**")
+            for line in report_brief:
+                st.markdown(f"- {line}")
+
+        section_summaries = biz.get("section_summaries", [])
+        if section_summaries:
+            with st.expander("원문 섹션별 자동 요약", expanded=False):
+                for item in section_summaries:
+                    st.markdown(f"**{item.get('title', 'DART 섹션')}**")
+                    st.markdown(item.get("summary", "요약 텍스트가 없습니다."))
+
         sections = biz.get("sections", [])
         if sections:
+            st.markdown("**원문 링크**")
             for section in sections:
                 title = section.get("title", "DART 섹션")
                 url = section.get("url", "")
@@ -1446,8 +1472,8 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
 
     st.markdown("---")
 
-    # 진입 분석
-    st.markdown("**📡 진입 분석**")
+    # 기술 신호
+    st.markdown("**📡 기술 신호**")
     row_dict = row.to_dict() if hasattr(row, "to_dict") else {}
     _rsi = row_dict.get("RSI")
     _pos = row_dict.get("week52_pos")
@@ -1460,9 +1486,9 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     if _pos is not None and pd.notna(_pos):
         _ic_metrics.append(("52주 위치", f"{float(_pos):.0f}%", None, "off"))
     if _sig:
-        sig_map = {"매수유망": "🟢 매수유망", "관심": "🔵 관심", "과열주의": "🔴 과열주의",
+        sig_map = {"강세후보": "🟢 강세 후보", "관심": "🔵 관심", "과열주의": "🔴 과열주의",
                    "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
-        _ic_metrics.append(("진입 신호", sig_map.get(_sig, _sig), None, "off"))
+        _ic_metrics.append(("기술 신호", sig_map.get(_sig, _sig), None, "off"))
     try:
         _cur = _get_current_price(code)
         _cons, _ = _get_analyst_data(code)
@@ -1492,14 +1518,14 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     except Exception:
         pass
 
-    # 투자 포인트 / 주의 사항
+    # 분석 포인트 / 주의 사항
     strengths  = [(AXIS_LABELS[a], float(row[a]), a) for a in AXES if float(row[a]) >= 60]
     weaknesses = [(AXIS_LABELS[a], float(row[a]), a) for a in AXES if float(row[a]) < 40]
     univ_ranks = {a: int((df_univ[a] > float(row[a])).sum()) + 1 for a in AXES}
 
     if strengths or weaknesses:
         if strengths:
-            st.markdown("**✅ 투자 포인트** (60점 이상)")
+            st.markdown("**✅ 분석 포인트** (60점 이상)")
             for lbl, score, akey in strengths:
                 st.markdown(
                     f"<div style='border-left:3px solid {AXIS_COLORS[akey]};padding:7px 10px;"
@@ -1780,16 +1806,22 @@ def main() -> None:
 
         has_signal = "entry_signal" in df.columns
         if has_signal:
-            all_signals = ["전체", "매수유망", "관심", "과열주의", "대기", "확인필요"]
-            signal_icons = {"매수유망": "🟢", "관심": "🔵", "과열주의": "🔴", "대기": "⚪", "확인필요": "❓"}
-            signal_labels = ["전체"] + [f"{signal_icons.get(s,'')} {s}" for s in all_signals[1:]]
-            sel_signal_label = st.selectbox("진입 신호", signal_labels)
+            all_signals = ["전체", "강세후보", "관심", "과열주의", "대기", "확인필요"]
+            signal_labels_by_value = {
+                "강세후보": "🟢 강세 후보",
+                "관심": "🔵 관심",
+                "과열주의": "🔴 과열주의",
+                "대기": "⚪ 대기",
+                "확인필요": "❓ 확인필요",
+            }
+            signal_labels = ["전체"] + [signal_labels_by_value.get(s, s) for s in all_signals[1:]]
+            sel_signal_label = st.selectbox("기술 신호", signal_labels)
             sel_signal = all_signals[signal_labels.index(sel_signal_label)]
         else:
             sel_signal = "전체"
 
         grade_options = ["전체", "최우수", "우수", "보통", "관찰"]
-        sel_grade = st.selectbox("투자등급", grade_options)
+        sel_grade = st.selectbox("분석등급", grade_options)
 
         if st.button("필터 초기화", use_container_width=True):
             st.session_state.tab2_search = ""
@@ -2071,10 +2103,10 @@ def main() -> None:
             )
             display["데이터"] = display.apply(data_quality_label, axis=1)
 
-            _signal_icon = {"매수유망": "🟢 매수유망", "관심": "🔵 관심",
+            _signal_icon = {"강세후보": "🟢 강세 후보", "관심": "🔵 관심",
                             "과열주의": "🔴 과열주의", "대기": "⚪ 대기", "확인필요": "❓ 확인필요"}
             if "entry_signal" in display.columns:
-                display["진입신호"] = display["entry_signal"].map(lambda x: _signal_icon.get(x, x))
+                display["기술신호"] = display["entry_signal"].map(lambda x: _signal_icon.get(x, x))
             if "RSI" in display.columns:
                 display["RSI"] = display["RSI"].apply(lambda x: f"{x:.0f}" if pd.notna(x) else "—")
             if "week52_pos" in display.columns:
@@ -2084,8 +2116,8 @@ def main() -> None:
             if "리스크" in display.columns:
                 show_cols += ["리스크"]
             show_cols += ["Total", "등급"]
-            if "진입신호" in display.columns:
-                show_cols += ["진입신호", "RSI", "52주위치"]
+            if "기술신호" in display.columns:
+                show_cols += ["기술신호", "RSI", "52주위치"]
             show_cols += ["데이터"]
 
             st.caption("💡 종목명 클릭 → 분석 팝업 | 헤더 정렬은 '종목 정렬' 셀렉트박스 사용")

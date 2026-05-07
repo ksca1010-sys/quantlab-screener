@@ -147,7 +147,7 @@ def trend_reason(code: str, df: pd.DataFrame) -> str:
         return (
             f"🟡 추세 중립 구간, 방향성 불명확"
             f" — Trend 점수 **{score:.1f}점**, **{rank}위/{total}위**{sector_note}."
-            f" 거래량 확인 후 진입 판단 권장."
+            f" 거래량 확인 후 기술 신호 점검 권장."
         )
     else:
         return (

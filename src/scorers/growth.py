@@ -133,17 +133,7 @@ def score_growth(
     sub_df = pd.DataFrame(
         {f"s{i}": s for i, (s, _) in enumerate(PARTS)}, index=codes
     )
-    weights = [w for _, w in PARTS]
-
-    def _row_total(row: pd.Series) -> float:
-        avail = [(v, w) for v, w in zip(row, weights) if pd.notna(v)]
-        if not avail:
-            return 0.0
-        score_sum = sum(v for v, _ in avail)
-        weight_sum = sum(w for _, w in avail)
-        return score_sum / weight_sum * 100
-
-    total = sub_df.apply(_row_total, axis=1)
+    total = sub_df.fillna(0).sum(axis=1)
     result = clip_score(total)
     result.index = codes
     return result

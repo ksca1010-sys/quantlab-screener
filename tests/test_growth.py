@@ -120,3 +120,16 @@ class TestScoreGrowth:
         }
         result = score_growth(universe, financials)
         assert result["grow"] > result["decline"]
+
+    def test_missing_submetrics_do_not_reweight_available_growth_components(self):
+        """매출만 있으면 매출 YoY와 가속도 배점까지만 받을 수 있어야 함."""
+        universe = pd.DataFrame({"code": ["best", "mid", "low"], "sector": ["Tech", "Tech", "Tech"]})
+        financials = {
+            "best": _make_financials({2022: 100, 2023: 140, 2024: 220}),
+            "mid": _make_financials({2022: 100, 2023: 120, 2024: 150}),
+            "low": _make_financials({2022: 100, 2023: 90, 2024: 80}),
+        }
+
+        result = score_growth(universe, financials)
+
+        assert result["best"] <= 40.0
