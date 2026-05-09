@@ -607,6 +607,32 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
   padding: 8px 10px;
   margin-top: 10px;
 }
+.ql-source-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  align-items: center;
+}
+.ql-source-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--border-hi);
+  border-radius: 3px;
+  padding: 3px 8px;
+  color: var(--text-base);
+  background: rgba(255,255,255,0.03);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.ql-source-muted {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
 @media (max-width: 1100px) {
   .ql-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ql-page-header { grid-template-columns: 1fr; }
@@ -624,7 +650,11 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
 def load_data() -> pd.DataFrame:
     if not CSV_PATH.exists():
         return pd.DataFrame()
-    df = pd.read_csv(CSV_PATH, index_col=0)
+    df = pd.read_csv(CSV_PATH)
+    if "Unnamed: 0" in df.columns and "rank" not in df.columns:
+        df = df.rename(columns={"Unnamed: 0": "rank"})
+    elif "Unnamed: 0" in df.columns:
+        df = df.drop(columns=["Unnamed: 0"])
 
     missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:
@@ -638,7 +668,13 @@ def load_data() -> pd.DataFrame:
     if "entry_signal" in df.columns:
         df["entry_signal"] = df["entry_signal"].replace({"매수유망": "강세후보"})
 
-    df = df.reset_index(drop=True)
+    df = df.sort_values("Total", ascending=False, kind="stable").reset_index(drop=True)
+    if "rank" in df.columns:
+        df["universe_rank"] = pd.to_numeric(df["rank"], errors="coerce").fillna(0).astype(int)
+        missing_rank = df["universe_rank"] <= 0
+        df.loc[missing_rank, "universe_rank"] = range(1, int(missing_rank.sum()) + 1)
+    else:
+        df["universe_rank"] = range(1, len(df) + 1)
     df.index = df.index + 1
     df.index.name = "rank"
     return df
@@ -799,10 +835,51 @@ def _fmt_score(value: float) -> str:
     return f"{float(value):.1f}" if pd.notna(value) else "—"
 
 
+def _source_label(source: str) -> tuple[str, str]:
+    """시장 데이터 출처 표시용 라벨과 색상."""
+    labels = {
+        "krx_fundamental_by_date": ("KRX 기준일", "#38B26B"),
+        "krx_fundamental_cache": ("KRX 캐시", "#38B26B"),
+        "naver_current_fallback": ("Naver 현재값", "#F0C040"),
+        "unavailable_asof": ("밸류 미확보", "#E03030"),
+    }
+    return labels.get(str(source), (str(source) or "출처 미상", "#8794A8"))
+
+
+def _data_status_html(df: pd.DataFrame) -> str:
+    """대시보드 상단의 데이터 신뢰도 배지 HTML."""
+    if df.empty:
+        return ""
+    as_of = str(df["as_of_date"].dropna().iloc[0]) if "as_of_date" in df.columns and df["as_of_date"].notna().any() else "기준일 없음"
+    generated = str(df["generated_at"].dropna().iloc[0]) if "generated_at" in df.columns and df["generated_at"].notna().any() else ""
+    src = str(df["market_data_source"].mode().iloc[0]) if "market_data_source" in df.columns and not df["market_data_source"].dropna().empty else ""
+    src_label, src_color = _source_label(src)
+    if src == "unavailable_asof":
+        pit_label, pit_color = "PIT 엄격 · 밸류 공백", "#E03030"
+    elif src in {"krx_fundamental_by_date", "krx_fundamental_cache"}:
+        pit_label, pit_color = "PIT 보정", "#38B26B"
+    elif src == "naver_current_fallback":
+        pit_label, pit_color = "최신 운용 · 현재값 포함", "#F0C040"
+    else:
+        pit_label, pit_color = "출처 확인 필요", "#8794A8"
+    dart_label = "DART 접수번호 대조" if "dart_source_rcept_no" in df.columns and df["dart_source_rcept_no"].fillna("").astype(str).str.len().gt(0).any() else "DART 미확인"
+    generated_note = f"<span class='ql-source-muted'>생성 {generated}</span>" if generated else ""
+    return (
+        "<div class='ql-source-strip'>"
+        f"<span class='ql-source-pill'>기준일 <strong>{as_of}</strong></span>"
+        f"<span class='ql-source-pill' style='border-color:{src_color};color:{src_color};'>PER/PBR {src_label}</span>"
+        f"<span class='ql-source-pill' style='border-color:{pit_color};color:{pit_color};'>{pit_label}</span>"
+        f"<span class='ql-source-pill'>{dart_label}</span>"
+        f"{generated_note}"
+        "</div>"
+    )
+
+
 def _render_dashboard_header(df: pd.DataFrame, fdf: pd.DataFrame) -> None:
     """상단 컨텍스트와 데이터 상태를 한 번에 보여준다."""
     kospi_cnt = int((df["market"] == "KOSPI").sum())
     kosdaq_cnt = int((df["market"] == "KOSDAQ").sum())
+    status_html = _data_status_html(df)
     st.markdown(
         f"""
         <div class="ql-page-header">
@@ -810,6 +887,7 @@ def _render_dashboard_header(df: pd.DataFrame, fdf: pd.DataFrame) -> None:
             <div class="ql-eyebrow">QuantLab Screener</div>
             <div class="ql-title">국내 주식 정량 스크리닝</div>
             <div class="ql-subtitle">KOSPI·KOSDAQ 유니버스의 성장, 가치, 펀더멘털, 추세를 업종 상대 기준으로 비교합니다.</div>
+            {status_html}
           </div>
           <div class="ql-header-meta">
             <span class="ql-pill"><strong>{len(fdf)}</strong> filtered</span>
@@ -965,15 +1043,20 @@ def _save_sector_cache(data: dict) -> None:
         pass
 
 
+def _load_sector_strength_for_initial_render() -> dict:
+    """첫 렌더에서는 디스크 캐시만 사용해 네트워크 조회로 화면 로딩을 막지 않는다."""
+    return _load_sector_cache() or {}
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
-def _compute_sector_strength(sector_nc_frozen: tuple) -> dict:
+def _compute_sector_strength(sector_nc_frozen: tuple, force_refresh: bool = False) -> dict:
     """섹터별 최근 5일(1주) 수익률 계산 → 중앙값 기준 bull/bear 자동 분류.
     TTL=1800초(30분) + 디스크 캐시 (서버 재기동에도 유지).
     sector_nc_frozen: ((섹터명, ((name1,code1), ...)), ...) 해시 가능 튜플.
     """
     # 1) 디스크 캐시 먼저 확인 (서버 재기동 후 첫 진입 가속)
     disk_cached = _load_sector_cache()
-    if disk_cached is not None:
+    if disk_cached is not None and not force_refresh:
         return disk_cached
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1396,7 +1479,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     code  = str(row["code"])
     name  = str(row["name"])
     total = float(row["Total"])
-    rank_val = int(row.get("rank", 0))
+    rank_val = int(row.get("rank", row.get("universe_rank", 0)))
     sector = str(row.get("sector", ""))
 
     _bull_sectors = set(sector_info.get("bull_sectors", [])) if sector_info else set()
@@ -1464,6 +1547,9 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         _mc = float(_mc_raw)
         _mc_str = f"{_mc / 1e12:.1f}조원" if _mc >= 1e12 else f"{_mc / 1e8:.0f}억원"
     _market_color = "#4A90D9" if _market_val == "KOSPI" else "#4ABF6A"
+    _source = str(row.get("market_data_source", ""))
+    _source_text, _source_color = _source_label(_source)
+    _years = str(row.get("financial_years", "") or "—")
 
     _ci = _get_company_info(code, name)
     _industry  = _ci.get("industry", "") or sector
@@ -1485,6 +1571,9 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         f"border-radius:2px;font-size:0.82rem;font-weight:700;'>{_market_val}</span>"
         f"<span style='color:#9A9278;font-size:0.88rem;'>📂 {sector}</span>"
         f"{_mc_badge}"
+        f"<span style='color:{_source_color};font-size:0.82rem;border:1px solid {_source_color};"
+        f"padding:2px 8px;border-radius:2px;'>PER/PBR {_source_text}</span>"
+        f"<span style='color:#9A9278;font-size:0.82rem;'>재무연도 {_years}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -1937,17 +2026,9 @@ def main() -> None:
     df = load_data()
     grade_thresholds = compute_grade_thresholds(df) if not df.empty else (60.0, 50.0, 40.0)
 
-    # 섹터 강도 계산 (5일 수익률, 10분 캐시)
-    sector_info: dict = {}
-    if not df.empty:
-        _sec_map = tuple(sorted(
-            (sec, tuple(zip(grp["name"].tolist(), grp["code"].tolist())))
-            for sec, grp in df.groupby("sector")
-        ))
-        try:
-            sector_info = _compute_sector_strength(_sec_map)
-        except Exception:
-            sector_info = {}
+    # 섹터 강도는 외부 가격 조회가 필요하므로 첫 화면에서는 디스크 캐시만 사용한다.
+    # 캐시가 없거나 만료되면 사이드바의 섹터 강도 새로고침 버튼으로 명시 실행한다.
+    sector_info: dict = _load_sector_strength_for_initial_render() if not df.empty else {}
     _bull_sectors_main = set(sector_info.get("bull_sectors", []))
 
     # UX: Full-page onboarding when no data
@@ -2020,8 +2101,6 @@ def main() -> None:
         sel_sector_label = st.selectbox("업종", sector_labels)
         sel_sector = sector_values[sector_labels.index(sel_sector_label)]
 
-        search = ""
-
         has_signal = "entry_signal" in df.columns
         if has_signal:
             all_signals = ["전체", "강세후보", "관심", "과열주의", "대기", "확인필요"]
@@ -2043,6 +2122,7 @@ def main() -> None:
 
         if st.button("필터 초기화", use_container_width=True):
             st.session_state.tab2_search = ""
+            st.session_state.sidebar_quick_search = ""
             st.rerun()
 
         st.divider()
@@ -2061,6 +2141,18 @@ def main() -> None:
         st.markdown("<div class='sidebar-sector-strength'>", unsafe_allow_html=True)
         st.markdown("**📡 섹터 강도** <small style='color:#8794A8;font-size:0.92rem;'>5일 수익률 기준</small>",
                     unsafe_allow_html=True)
+        if st.button("섹터 강도 새로고침", use_container_width=True):
+            _sec_map = tuple(sorted(
+                (sec, tuple(zip(grp["name"].tolist(), grp["code"].tolist())))
+                for sec, grp in df.groupby("sector")
+            ))
+            with st.spinner("섹터 강도 계산 중..."):
+                try:
+                    sector_info = _compute_sector_strength(_sec_map, force_refresh=True)
+                except Exception:
+                    sector_info = {}
+            st.rerun()
+
         if sector_info and sector_info.get("sector_returns"):
             _sr = sector_info["sector_returns"]
             _bull_set = set(sector_info.get("bull_sectors", []))
@@ -2097,9 +2189,9 @@ def main() -> None:
                     f"</div>"
                 )
             st.markdown("\n".join(_rows_html), unsafe_allow_html=True)
-            st.caption(f"섹터 중앙값 {_med:+.1f}% | 10분마다 자동 갱신")
+            st.caption(f"섹터 중앙값 {_med:+.1f}% | 수동 새로고침")
         else:
-            st.caption("섹터 강도 데이터 로딩 중...")
+            st.caption("섹터 강도 캐시가 없습니다. 필요할 때 새로고침하세요.")
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
@@ -2126,6 +2218,7 @@ def main() -> None:
             st.rerun()
 
     # 필터 적용
+    search = str(st.session_state.get("tab2_search", "") or "").strip()
     fdf = df.copy()
     if search:
         mask = (
@@ -2181,6 +2274,41 @@ def main() -> None:
                 file_name=f"quantlab_screener_{today_str}.csv",
                 mime="text/csv",
             )
+            control_cols = st.columns([1.2, 2.2, 0.8])
+            sort_label = control_cols[0].selectbox(
+                "종목 정렬",
+                ["종합점수", "성장", "가치", "펀더멘털", "추세", "리스크", "전체순위"],
+                index=0,
+                key="stock_sort_label",
+            )
+            sort_map = {
+                "종합점수": ("Total", False),
+                "성장": ("Growth", False),
+                "가치": ("Value", False),
+                "펀더멘털": ("Quality", False),
+                "추세": ("Trend", False),
+                "리스크": ("Risk", False),
+                "전체순위": ("universe_rank", True),
+            }
+            sort_col, sort_asc = sort_map[sort_label]
+            if sort_col not in fdf.columns:
+                sort_col, sort_asc = "Total", False
+            sorted_fdf = fdf.sort_values(sort_col, ascending=sort_asc, kind="stable")
+
+            open_options = sorted_fdf.apply(
+                lambda r: f"{int(r['universe_rank'])}위 {r['name']} ({r['code']})", axis=1
+            ).tolist()
+            selected_open = control_cols[1].selectbox(
+                "종목 바로 열기",
+                open_options,
+                index=0,
+                key="stock_quick_open",
+            )
+            if control_cols[2].button("열기", use_container_width=True, key="stock_quick_open_btn"):
+                selected_code = selected_open.rsplit("(", 1)[-1].replace(")", "").strip()
+                selected_row = sorted_fdf[sorted_fdf["code"].astype(str) == selected_code]
+                if not selected_row.empty:
+                    _show_stock_dialog(selected_row.iloc[0], df, fdf, grade_thresholds, sector_info=sector_info)
 
             # ── 상대 강도(RS) TOP — 시장 대비 강한 종목 ─────────────────────
             with st.expander("📈 시장보다 강한 종목 TOP 20 (vs KOSPI)", expanded=False):
@@ -2269,17 +2397,18 @@ def main() -> None:
                             unsafe_allow_html=True,
                         )
 
-            base_cols = ["name", "code", "market", "sector",
+            base_cols = ["universe_rank", "name", "code", "market", "sector",
                          "Growth", "Value", "Quality", "Trend", "Total"]
             if "Risk" in fdf.columns:
                 base_cols.insert(-1, "Risk")
             extra_cols = [c for c in ["RSI", "week52_pos", "entry_signal"] if c in fdf.columns]
             display = (
-                fdf.reset_index()[base_cols + extra_cols]
-                .sort_values("Total", ascending=False, kind="stable")
+                sorted_fdf.reset_index()[base_cols + extra_cols]
+                .sort_values(sort_col, ascending=sort_asc, kind="stable")
                 .reset_index(drop=True)
             )
-            display.insert(0, "순위", range(1, len(display) + 1))
+            display.insert(0, "필터순위", range(1, len(display) + 1))
+            display["전체순위"] = display["universe_rank"].astype(int)
 
             display["종목"] = display["name"] + " (" + display["code"] + ")"
             display["성장"] = display["Growth"].apply(
@@ -2308,7 +2437,7 @@ def main() -> None:
             if "week52_pos" in display.columns:
                 display["52주위치"] = display["week52_pos"].apply(lambda x: f"{x:.0f}%" if pd.notna(x) else "—")
 
-            show_cols = ["순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세"]
+            show_cols = ["전체순위", "필터순위", "종목", "market", "sector", "성장", "가치", "펀더멘털", "추세"]
             if "리스크" in display.columns:
                 show_cols += ["리스크"]
             show_cols += ["Total", "등급"]
@@ -2327,7 +2456,7 @@ def main() -> None:
                 _ctrend  = float(_crow.get("Trend", 0)) if "Trend" in _crow else 0.0
                 _cbull   = (_csector in _bull_sectors_main) and (_ctrend >= 65)
                 _cards_html.append(_mobile_card_html(
-                    rank=int(_crow["순위"]),
+                    rank=int(_crow["전체순위"]),
                     name=_cname,
                     sector=_csector,
                     total=float(_crow["Total"]),
@@ -2338,8 +2467,8 @@ def main() -> None:
             st.markdown("\n".join(_cards_html), unsafe_allow_html=True)
 
             # ── 커스텀 클릭 테이블 헤더 (데스크톱) ──────────────────────────
-            _GCOLS = [0.35, 1.9, 0.65, 1.0, 0.7, 0.7, 0.75, 0.7, 0.7, 0.75, 0.65]
-            _GHEADS = ["순위", "종목명 ↗클릭", "시장", "업종", "성장", "가치", "펀더멘털", "추세", "리스크", "종합", "등급"]
+            _GCOLS = [0.45, 0.45, 1.9, 0.65, 1.0, 0.7, 0.7, 0.75, 0.7, 0.7, 0.75, 0.65]
+            _GHEADS = ["전체", "필터", "종목명 ↗클릭", "시장", "업종", "성장", "가치", "펀더멘털", "추세", "리스크", "종합", "등급"]
             st.markdown("""
 <style>
 /* 종목명 tertiary 버튼 — 텍스트 링크 스타일 */
@@ -2371,7 +2500,9 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
             _grade_colors = {"최우수": "#38B26B", "우수": "#6FCFCF", "보통": "#F0C040", "관찰": "#E03030"}
             for _, _drow in display.iterrows():
                 _rc = st.columns(_GCOLS)
-                _rc[0].markdown(f"<span style='font-size:0.95rem;color:#8794A8;font-family:monospace;'>{_drow['순위']}</span>",
+                _rc[0].markdown(f"<span style='font-size:0.95rem;color:#EEF4FF;font-family:monospace;'>{_drow['전체순위']}</span>",
+                                unsafe_allow_html=True)
+                _rc[1].markdown(f"<span style='font-size:0.88rem;color:#8794A8;font-family:monospace;'>{_drow['필터순위']}</span>",
                                 unsafe_allow_html=True)
                 _stock_name = str(_drow["종목"]).split("(")[0].strip()
                 _stock_code = str(_drow["code"])
@@ -2379,34 +2510,34 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 _row_trend = float(_drow.get("Trend", 0)) if "Trend" in _drow else 0.0
                 _is_bull_row = (_row_sector in _bull_sectors_main) and (_row_trend >= 65)
                 _btn_label = f"🔥 {_stock_name}" if _is_bull_row else _stock_name
-                if _rc[1].button(_btn_label, key=f"stk_{_stock_code}", type="tertiary",
+                if _rc[2].button(_btn_label, key=f"stk_{_stock_code}", type="tertiary",
                                  use_container_width=True):
                     _clicked_row = fdf.reset_index()[fdf.reset_index()["code"] == _stock_code]
                     if not _clicked_row.empty:
                         _show_stock_dialog(_clicked_row.iloc[0], df, fdf, grade_thresholds,
                                            sector_info=sector_info)
-                _rc[2].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['market']}</span>",
+                _rc[3].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['market']}</span>",
                                 unsafe_allow_html=True)
-                _rc[3].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['sector']}</span>",
+                _rc[4].markdown(f"<span style='font-size:0.94rem;color:#B6C2D1;'>{_drow['sector']}</span>",
                                 unsafe_allow_html=True)
-                _rc[4].markdown(f"<span style='font-size:0.94rem;'>{_drow['성장']}</span>",
+                _rc[5].markdown(f"<span style='font-size:0.94rem;'>{_drow['성장']}</span>",
                                 unsafe_allow_html=True)
-                _rc[5].markdown(f"<span style='font-size:0.94rem;'>{_drow['가치']}</span>",
+                _rc[6].markdown(f"<span style='font-size:0.94rem;'>{_drow['가치']}</span>",
                                 unsafe_allow_html=True)
-                _rc[6].markdown(f"<span style='font-size:0.94rem;'>{_drow['펀더멘털']}</span>",
+                _rc[7].markdown(f"<span style='font-size:0.94rem;'>{_drow['펀더멘털']}</span>",
                                 unsafe_allow_html=True)
-                _rc[7].markdown(f"<span style='font-size:0.94rem;'>{_drow['추세']}</span>",
+                _rc[8].markdown(f"<span style='font-size:0.94rem;'>{_drow['추세']}</span>",
                                 unsafe_allow_html=True)
-                _rc[8].markdown(f"<span style='font-size:0.94rem;'>{_drow['리스크']}</span>",
+                _rc[9].markdown(f"<span style='font-size:0.94rem;'>{_drow['리스크']}</span>",
                                 unsafe_allow_html=True)
                 _total_v = float(_drow["Total"])
-                _rc[9].markdown(
+                _rc[10].markdown(
                     f"<span style='font-size:1rem;font-weight:800;color:#EEF4FF;'>{_total_v:.1f}</span>",
                     unsafe_allow_html=True)
                 _grade = str(_drow["등급"])
                 _gcfg = GRADE_CONFIG.get(_grade, {"bg": "#2A2A2A", "text": "#9A9278", "border": "#3A3A3A"})
                 _gcfg_bg, _gcfg_text, _gcfg_border = _gcfg["bg"], _gcfg["text"], _gcfg["border"]
-                _rc[10].markdown(
+                _rc[11].markdown(
                     f"<span style='background:{_gcfg_bg};color:{_gcfg_text};border:1px solid {_gcfg_border};padding:4px 8px;"
                     f"border-radius:3px;font-size:0.82rem;font-weight:800;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>{_grade}</span>",
                     unsafe_allow_html=True)
@@ -2945,6 +3076,12 @@ def _render_macro_tab() -> None:
         chg_1m  = _pct(22)
         chg_3m  = _pct(66)
         chg_1y  = _pct(252)
+        data_min = float(s.min())
+        data_max = float(s.max())
+        data_span = data_max - data_min
+        y_pad = data_span * 0.08 if data_span > 0 else max(abs(current_val) * 0.02, 1)
+        y_range = [max(0, data_min - y_pad), data_max + y_pad]
+        y_tickformat = ",.0f" if current_val >= 100 else ",.2f"
 
         # RSI
         rsi_val = None
@@ -3018,7 +3155,7 @@ def _render_macro_tab() -> None:
             except Exception:
                 pass
 
-        # 우측 상단 annotation: 현재값 + 변화율 + RSI
+        # 카드 헤더: 현재값 + 변화율 + RSI
         chg_color = (
             "#38B26B" if chg_1m and chg_1m >= 0
             else "#E03030" if chg_1m and chg_1m < 0
@@ -3041,7 +3178,16 @@ def _render_macro_tab() -> None:
             f"<span style='color:{chg_color};'>{chg_str}</span>"
         )
 
-        annotations = []
+        annotations = [dict(
+            text=title_text,
+            xref="paper", yref="paper",
+            x=0.0, y=1.24,
+            xanchor="left", yanchor="bottom",
+            showarrow=False,
+            align="left",
+            font=dict(size=15, family="monospace", color="#EEF4FF"),
+            bgcolor="rgba(0,0,0,0)",
+        )]
         if chg3_str or rsi_str:
             sub_parts = []
             if chg3_str:
@@ -3051,7 +3197,7 @@ def _render_macro_tab() -> None:
             annotations.append(dict(
                 text=" · ".join(sub_parts),
                 xref="paper", yref="paper",
-                x=0.0, y=1.0,
+                x=0.0, y=1.11,
                 xanchor="left", yanchor="bottom",
                 showarrow=False,
                 font=dict(size=11, family="monospace", color="#B6C2D1"),
@@ -3059,12 +3205,11 @@ def _render_macro_tab() -> None:
             ))
 
         fig.update_layout(
-            title=dict(text=title_text, font=dict(size=15, family="monospace", color="#EEF4FF"), x=0, y=0.98),
             showlegend=True,
             legend=dict(
                 orientation="h",
-                x=1, y=1, xanchor="right", yanchor="top",
-                font=dict(size=11, color="#D7E0EA"),
+                x=1, y=1.11, xanchor="right", yanchor="bottom",
+                font=dict(size=10, color="#D7E0EA"),
                 bgcolor="rgba(0,0,0,0)",
                 itemsizing="constant",
             ),
@@ -3072,30 +3217,33 @@ def _render_macro_tab() -> None:
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#0B0F17",
             font=dict(family="monospace", size=12, color="#D7E0EA"),
-            margin=dict(l=74, r=22, t=64, b=44),
+            margin=dict(l=58, r=14, t=78, b=34),
             height=height,
             xaxis=dict(
                 showgrid=True,
                 gridcolor="rgba(51,65,85,0.35)",
-                tickfont=dict(size=12, color="#D7E0EA"),
+                tickfont=dict(size=11, color="#D7E0EA"),
                 linecolor="#475569",
                 linewidth=1.4,
                 tickcolor="#64748B",
                 ticks="outside",
                 ticklen=4,
+                nticks=4,
             ),
             yaxis=dict(
                 gridcolor="rgba(71,85,105,0.55)",
-                tickfont=dict(size=13, color="#EEF4FF"),
-                tickformat=",.2f",
+                tickfont=dict(size=11, color="#EEF4FF"),
+                tickformat=y_tickformat,
                 linecolor="#94A3B8",
                 linewidth=1.6,
                 tickcolor="#94A3B8",
                 ticks="outside",
                 ticklen=5,
-                zeroline=True,
+                nticks=4,
+                range=y_range,
+                zeroline=False,
                 zerolinecolor="rgba(148,163,184,0.7)",
-                title=dict(text=unit, font=dict(size=12, color="#D7E0EA")),
+                title=None,
             ),
             hovermode="x unified",
             hoverlabel=dict(

@@ -7,7 +7,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -29,12 +29,66 @@ def _check_dart_key() -> bool:
     return bool(os.getenv("DART_API_KEY", "").strip())
 
 
+def _apply_fixed_sector_map(df: pd.DataFrame) -> pd.DataFrame:
+    """config/sector_map.yaml의 고정 섹터를 스코어링 전에 적용한다."""
+    sector_map_path = os.path.join(os.path.dirname(__file__), "..", "config", "sector_map.yaml")
+    if not os.path.exists(sector_map_path):
+        return df
+
+    import yaml
+    with open(sector_map_path, encoding="utf-8") as f:
+        sector_map = yaml.safe_load(f) or {}
+
+    result = df.copy()
+    code_str = result["code"].astype(str).str.zfill(6)
+    fixed = code_str.map(sector_map)
+    result["sector"] = fixed.where(fixed.notna(), result["sector"])
+    logger.info("섹터 고정값 적용 완료 (config/sector_map.yaml)")
+    return result
+
+
 def _build_market_data(universe: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
-    """Naver Finance HTML에서 PER·PBR·배당수익률 수집. 허수 없음 — 미확보 시 NaN."""
-    from src.data_loader import fetch_naver_fundamentals
+    """기준일 PER·PBR·배당수익률 수집. 과거 기준일은 현재값 fallback 없이 NaN."""
+    from pandas.tseries.offsets import BDay
+    from src.data_loader import fetch_krx_fundamentals_by_date, fetch_naver_fundamentals
     import time
 
     nan = float("nan")
+    krx_fund = fetch_krx_fundamentals_by_date(as_of_date)
+    if not krx_fund.empty:
+        result = universe[["code"]].copy()
+        result["code"] = result["code"].astype(str).str.zfill(6)
+        result = result.merge(krx_fund, on="code", how="left")
+        for col in ["per", "pbr", "dividend_yield"]:
+            if col not in result.columns:
+                result[col] = nan
+        if "market_data_source" not in result.columns:
+            result["market_data_source"] = "krx_fundamental_by_date"
+        result["market_data_source"] = result["market_data_source"].fillna("krx_fundamental_by_date")
+        result["peg"] = nan
+        result["roe"] = nan
+        result["operating_margin"] = nan
+        result["debt_ratio"] = nan
+        result["interest_coverage"] = nan
+        return result
+
+    today = pd.Timestamp.today().normalize()
+    ref = pd.Timestamp(as_of_date).normalize()
+    latest_allowed = today - BDay(1) if today.weekday() >= 5 else today
+    use_current_fallback = ref >= latest_allowed - BDay(1)
+    if not use_current_fallback:
+        logger.warning(
+            "KRX 기준일 밸류에이션 조회 실패 및 과거 기준일(%s) 실행 → 현재 Naver 값 fallback 금지, Value 일부 NaN 처리",
+            as_of_date,
+        )
+        result = universe[["code"]].copy()
+        result["code"] = result["code"].astype(str).str.zfill(6)
+        for col in ["per", "pbr", "dividend_yield", "peg", "roe", "operating_margin", "debt_ratio", "interest_coverage"]:
+            result[col] = nan
+        result["market_data_source"] = "unavailable_asof"
+        return result
+
+    logger.warning("KRX 기준일 밸류에이션 조회 실패 → 최신 기준일로 간주하고 Naver 현재값 fallback 사용")
     records = []
     for _, row in tqdm(universe.iterrows(), total=len(universe), desc="시장 데이터 수집"):
         code = str(row["code"]).zfill(6)
@@ -48,7 +102,8 @@ def _build_market_data(universe: pd.DataFrame, as_of_date: str) -> pd.DataFrame:
             logger.warning("[%s] 시장 데이터 조회 실패: %s", code, e)
             rec.update({"per": nan, "pbr": nan, "dividend_yield": nan})
         rec.update({"peg": nan, "roe": nan, "operating_margin": nan,
-                    "debt_ratio": nan, "interest_coverage": nan})
+                    "debt_ratio": nan, "interest_coverage": nan,
+                    "market_data_source": "naver_current_fallback"})
         records.append(rec)
         time.sleep(0.3)  # Naver 레이트 제한
 
@@ -173,6 +228,33 @@ def _enrich_from_dart(market_data: pd.DataFrame, financials: dict[str, pd.DataFr
     return result
 
 
+def _financial_source_metadata(financials: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """DART 재무 데이터의 사용 사업연도와 접수번호를 결과 감사용으로 요약한다."""
+    records = []
+    for code, df in financials.items():
+        rec = {
+            "code": str(code).zfill(6),
+            "financial_years": "",
+            "dart_source_rcept_dt": "",
+            "dart_source_rcept_no": "",
+        }
+        if not df.empty and "bsns_year" in df.columns:
+            years = sorted(pd.to_numeric(df["bsns_year"], errors="coerce").dropna().astype(int).unique())
+            rec["financial_years"] = "|".join(str(y) for y in years)
+        if not df.empty and "source_rcept_dt" in df.columns:
+            src = (
+                df[["source_rcept_dt", "source_rcept_no"]]
+                .dropna(how="all")
+                .drop_duplicates()
+                .sort_values("source_rcept_dt")
+            )
+            if not src.empty:
+                rec["dart_source_rcept_dt"] = "|".join(src["source_rcept_dt"].fillna("").astype(str).tolist())
+                rec["dart_source_rcept_no"] = "|".join(src["source_rcept_no"].fillna("").astype(str).tolist())
+        records.append(rec)
+    return pd.DataFrame(records)
+
+
 def _build_financial_data(universe: pd.DataFrame, as_of_date: str) -> dict[str, pd.DataFrame]:
     """DART에서 분기 재무 데이터 수집 (DART_API_KEY 필요)."""
     from src.data_loader import get_financial_data
@@ -237,6 +319,7 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     # 1. 유니버스 로드
     logger.info("[1/6] 유니버스 로드...")
     universe = load_universe(refresh=refresh_universe, as_of_date=as_of_date)
+    universe = _apply_fixed_sector_map(universe)
     logger.info("유니버스: %d개 종목", len(universe))
 
     # 2. 가격 데이터
@@ -274,24 +357,21 @@ def run_pipeline(as_of_date: str, refresh_universe: bool) -> pd.DataFrame:
     logger.info("[6/6] 집계 및 결과 저장...")
     result = aggregate(universe, growth, value, quality, trend, risk)
 
-    # 섹터 고정값 적용 (config/sector_map.yaml 우선 — pykrx 실패로 덮어씌워지는 것 방지)
-    sector_map_path = os.path.join(os.path.dirname(__file__), "..", "config", "sector_map.yaml")
-    if os.path.exists(sector_map_path):
-        import yaml
-        with open(sector_map_path, encoding="utf-8") as f:
-            sector_map = yaml.safe_load(f)
-        result["code_str"] = result["code"].astype(str).str.zfill(6)
-        fixed = result["code_str"].map(sector_map)
-        result["sector"] = fixed.where(fixed.notna(), result["sector"])
-        result.drop(columns=["code_str"], inplace=True)
-        logger.info("섹터 고정값 적용 완료 (config/sector_map.yaml)")
+    sector_peer_count = universe.groupby("sector")["code"].count()
+    result["sector_peer_count"] = result["sector"].map(sector_peer_count).fillna(0).astype(int)
+    result["as_of_date"] = as_of_date
+    result["generated_at"] = datetime.now().isoformat(timespec="seconds")
 
     # 데이터 신뢰도 등급 부여 (A/B/C/D) — 원시 지표 컬럼을 임시 병합 후 등급 계산
-    _grade_cols = ["code", "per", "pbr", "dividend_yield", "roe", "operating_margin"]
+    _grade_cols = ["code", "per", "pbr", "dividend_yield", "roe", "operating_margin", "market_data_source"]
     _available = [c for c in _grade_cols if c in market_data.columns]
     result = result.merge(market_data[_available], on="code", how="left")
     result = add_data_grade(result)
-    result = result.drop(columns=[c for c in _available if c != "code" and c in result.columns])
+    result = result.drop(columns=[c for c in _available if c not in {"code", "market_data_source"} and c in result.columns])
+
+    fin_meta = _financial_source_metadata(financials)
+    if not fin_meta.empty:
+        result = result.merge(fin_meta, on="code", how="left")
 
     output_dir = os.getenv("OUTPUT_DIR", "./output")
     # 전체 유니버스 (300개) 저장 — 상위권 밖 탐색용

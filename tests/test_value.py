@@ -5,15 +5,15 @@ from src.scorers.value import score_value
 
 def test_missing_peg_does_not_reweight_other_value_components():
     universe = pd.DataFrame({
-        "code": ["best", "low"],
-        "sector": ["Tech", "Tech"],
+        "code": ["best", "mid", "low"],
+        "sector": ["Tech", "Tech", "Tech"],
     })
     market_data = pd.DataFrame({
-        "code": ["best", "low"],
-        "per": [5.0, 20.0],
-        "pbr": [0.5, 3.0],
-        "peg": [float("nan"), float("nan")],
-        "dividend_yield": [5.0, 0.0],
+        "code": ["best", "mid", "low"],
+        "per": [5.0, 12.0, 20.0],
+        "pbr": [0.5, 1.5, 3.0],
+        "peg": [float("nan"), float("nan"), float("nan")],
+        "dividend_yield": [5.0, 2.0, 0.0],
     })
 
     result = score_value(universe, {}, market_data)

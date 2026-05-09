@@ -12,6 +12,7 @@ def sector_percentile(
     column: str,
     sector_col: str = "sector",
     ascending: bool = True,
+    min_peer_count: int = 3,
 ) -> pd.Series:
     """
     섹터 내 분위수 정규화 (0~1).
@@ -20,12 +21,16 @@ def sector_percentile(
     - ascending=True: 값이 높을수록 높은 분위수 (ROE, 성장률 등)
 
     절댓값 비교 금지 규칙에 따라 전체 유니버스 fallback 없이 섹터 내부에서만 비교한다.
+    유효 peer 수가 너무 적으면 순위 근거가 부족하므로 NaN으로 남겨 후단에서 0점 처리한다.
     """
     result = pd.Series(index=df.index, dtype=float)
 
     for sector, group in df.groupby(sector_col):
         valid = group[column].dropna()
-        if valid.empty:
+        if len(valid) < min_peer_count:
+            continue
+        if valid.nunique(dropna=True) == 1:
+            result.loc[valid.index] = 0.5
             continue
         ranks = valid.rank(pct=True, ascending=ascending)
         result.loc[ranks.index] = ranks

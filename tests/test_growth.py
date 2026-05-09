@@ -113,9 +113,10 @@ class TestScoreGrowth:
 
     def test_growing_scores_higher_than_declining(self):
         """성장 종목이 역성장 종목보다 높은 종합 점수를 받아야 함."""
-        universe = pd.DataFrame({"code": ["grow", "decline"]})
+        universe = pd.DataFrame({"code": ["grow", "flat", "decline"]})
         financials = {
             "grow": _make_financials({2022: 100, 2023: 130, 2024: 170}),
+            "flat": _make_financials({2022: 100, 2023: 105, 2024: 110}),
             "decline": _make_financials({2022: 200, 2023: 160, 2024: 130}),
         }
         result = score_growth(universe, financials)

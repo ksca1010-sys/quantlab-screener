@@ -69,8 +69,9 @@ def to_csv(df: pd.DataFrame, path: str, top_n: int | None = None) -> None:
     """결과 DataFrame을 CSV로 저장. top_n 지정 시 상위 N개만 저장."""
     import os
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    data = df.head(top_n) if top_n is not None else df
-    data.to_csv(path, encoding="utf-8-sig")
+    data = (df.head(top_n) if top_n is not None else df).copy()
+    data.insert(0, "rank", range(1, len(data) + 1))
+    data.to_csv(path, index=False, encoding="utf-8-sig")
 
 
 def save_snapshot(df: pd.DataFrame, as_of_date: str) -> str:

@@ -5,6 +5,7 @@ pykrx API 불안정 대비: FinanceDataReader를 1차 소스로 사용
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import FinanceDataReader as fdr
@@ -16,11 +17,48 @@ logger = logging.getLogger(__name__)
 UNIVERSE_PATH = Path("config/universe.yaml")
 
 
-def _fetch_listing_with_marcap() -> pd.DataFrame:
+def _universe_snapshot_path(as_of_date: str, kospi_top: int, kosdaq_top: int) -> Path:
+    """기준일 유니버스 스냅샷 경로."""
+    date_tag = pd.Timestamp(as_of_date).strftime("%Y%m%d")
+    return Path(os.getenv("DATA_DIR", "./data")) / "universe" / f"{date_tag}_K{kospi_top}_Q{kosdaq_top}.csv"
+
+
+def _fetch_listing_with_marcap(as_of_date: str | None = None) -> pd.DataFrame:
     """
-    fdr.StockListing('KRX')로 전 종목 + 시총 일괄 조회.
-    Marcap 컬럼을 바로 활용하므로 pykrx 의존 없음.
+    기준일 종목 + 시총 일괄 조회.
+    과거 기준일은 pykrx 날짜 고정 시총을 우선 사용하고 실패 시 현재 FDR 목록으로 fallback한다.
     """
+    if as_of_date:
+        date_str = pd.Timestamp(as_of_date).strftime("%Y%m%d")
+        frames = []
+        try:
+            from pykrx import stock as krx
+            for market in ("KOSPI", "KOSDAQ"):
+                cap = krx.get_market_cap_by_ticker(date_str, market=market)
+                if cap is None or cap.empty:
+                    continue
+                work = cap.reset_index().rename(columns={"티커": "code", "시가총액": "market_cap"})
+                if "code" not in work.columns:
+                    work = work.rename(columns={work.columns[0]: "code"})
+                work["code"] = work["code"].astype(str).str.zfill(6)
+                work["name"] = work["code"].map(lambda c: krx.get_market_ticker_name(c))
+                work["market"] = market
+                frames.append(work[["code", "name", "market", "market_cap"]])
+            if frames:
+                return pd.concat(frames, ignore_index=True)
+        except Exception as e:
+            logger.warning("pykrx 기준일 유니버스 조회 실패(%s): %s", date_str, e)
+
+        from pandas.tseries.offsets import BDay
+        today = pd.Timestamp.today().normalize()
+        ref = pd.Timestamp(as_of_date).normalize()
+        latest_allowed = today - BDay(1) if today.weekday() >= 5 else today
+        if ref < latest_allowed - BDay(1):
+            raise RuntimeError(
+                f"과거 기준일 유니버스 조회 실패({as_of_date}). 현재 FDR 목록으로 fallback하면 point-in-time이 깨집니다."
+            )
+        logger.warning("최신 기준일로 간주하고 FDR 현재 목록 fallback 사용")
+
     df = fdr.StockListing("KRX")
     rename_map = {
         "Code": "code",
@@ -101,9 +139,20 @@ def build_universe(
     if ref_ts.weekday() >= 5:  # 토=5, 일=6
         ref_ts = ref_ts - BDay(1)
     ref_date = ref_ts.strftime("%Y%m%d")
+    snapshot_path = _universe_snapshot_path(ref_ts.strftime("%Y-%m-%d"), kospi_top, kosdaq_top)
+    if snapshot_path.exists():
+        try:
+            logger.info("유니버스 스냅샷 사용: %s", snapshot_path)
+            cached = pd.read_csv(snapshot_path, dtype={"code": str})
+            cached["code"] = cached["code"].astype(str).str.zfill(6)
+            cached.index = cached.index + 1
+            cached.index.name = "rank"
+            return cached[["code", "name", "market", "sector", "market_cap"]]
+        except Exception as e:
+            logger.warning("유니버스 스냅샷 읽기 실패(%s): %s", snapshot_path, e)
 
     logger.info("종목 목록 + 시총 조회 중 (기준일: %s)...", ref_date)
-    listing = _fetch_listing_with_marcap()
+    listing = _fetch_listing_with_marcap(as_of_date=ref_ts.strftime("%Y-%m-%d"))
 
     listing["market_cap"] = pd.to_numeric(listing["market_cap"], errors="coerce").fillna(0.0)
     listing = listing[listing["market_cap"] > 0]
@@ -152,6 +201,12 @@ def build_universe(
         "유니버스 확정: %d개 종목 (KOSPI %d + KOSDAQ %d)",
         len(combined), len(kospi_df), len(kosdaq_df),
     )
+    try:
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        combined.to_csv(snapshot_path, index=False, encoding="utf-8-sig")
+        logger.info("유니버스 스냅샷 저장: %s", snapshot_path)
+    except Exception as e:
+        logger.warning("유니버스 스냅샷 저장 실패(%s): %s", snapshot_path, e)
     return combined
 
 
@@ -170,7 +225,18 @@ def load_universe(
         logger.info("기존 유니버스 로드: %s", UNIVERSE_PATH)
         with open(UNIVERSE_PATH) as f:
             data = yaml.safe_load(f)
-        return pd.DataFrame(data["stocks"])
+        cache_matches = (
+            data.get("as_of_date") == as_of_date
+            and data.get("kospi_top") == kospi_top
+            and data.get("kosdaq_top") == kosdaq_top
+        )
+        if not cache_matches:
+            logger.info(
+                "유니버스 캐시 기준 불일치(as_of=%s, requested=%s) → 재생성",
+                data.get("as_of_date"), as_of_date,
+            )
+        else:
+            return pd.DataFrame(data["stocks"])
 
     logger.info("유니버스 재생성 중...")
     df = build_universe(as_of_date=as_of_date, kospi_top=kospi_top, kosdaq_top=kosdaq_top)
