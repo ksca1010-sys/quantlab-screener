@@ -70,6 +70,8 @@ def to_csv(df: pd.DataFrame, path: str, top_n: int | None = None) -> None:
     import os
     os.makedirs(os.path.dirname(path), exist_ok=True)
     data = (df.head(top_n) if top_n is not None else df).copy()
+    if "rank" in data.columns:
+        data = data.drop(columns=["rank"])
     data.insert(0, "rank", range(1, len(data) + 1))
     data.to_csv(path, index=False, encoding="utf-8-sig")
 

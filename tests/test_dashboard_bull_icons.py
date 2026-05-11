@@ -3,6 +3,43 @@ import pandas as pd
 from dashboard import app
 
 
+def _dashboard_csv_frame() -> pd.DataFrame:
+    return pd.DataFrame({
+        "rank": [5, 1],
+        "name": ["B", "A"],
+        "code": ["2", "000001"],
+        "market": ["KOSPI", "KOSPI"],
+        "sector": ["Tech", "Tech"],
+        "Growth": [20.0, 70.0],
+        "Value": [30.0, 60.0],
+        "Quality": [40.0, 50.0],
+        "Trend": [50.0, 40.0],
+        "Total": [35.0, 55.0],
+    })
+
+
+def test_load_data_preserves_explicit_rank_without_reset_collision(tmp_path, monkeypatch):
+    csv_path = tmp_path / "stocks_top100.csv"
+    _dashboard_csv_frame().to_csv(csv_path, index=False)
+    monkeypatch.setattr(app, "CSV_PATH", csv_path)
+    app.load_data.clear()
+
+    loaded = app.load_data()
+
+    assert loaded.index.name == "rank"
+    assert loaded["universe_rank"].tolist() == [1, 5]
+    assert loaded["code"].tolist() == ["000001", "000002"]
+
+
+def test_plain_df_drops_rank_index_before_csv_download():
+    df = _dashboard_csv_frame().set_index(pd.Index([1, 2], name="rank"))
+
+    plain = app._plain_df(df)
+
+    assert plain.index.name is None
+    assert plain.columns.tolist().count("rank") == 1
+
+
 def test_bull_sector_fallback_uses_trend_when_cache_is_missing():
     df = pd.DataFrame({
         "sector": ["전기·전자", "전기·전자", "보험업", "보험업"],

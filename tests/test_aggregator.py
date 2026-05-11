@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.aggregator import aggregate
+from src.aggregator import aggregate, to_csv
 from src.main import print_summary
 
 
@@ -44,3 +44,26 @@ def test_print_summary_handles_result_without_rank_index(capsys):
     out = capsys.readouterr().out
     assert "처리 결과 요약" in out
     assert "A" in out
+
+
+def test_to_csv_is_idempotent_when_rank_column_already_exists(tmp_path):
+    result = pd.DataFrame({
+        "rank": [99],
+        "code": ["000001"],
+        "name": ["A"],
+        "market": ["KOSPI"],
+        "sector": ["Tech"],
+        "Growth": [70.0],
+        "Value": [60.0],
+        "Quality": [50.0],
+        "Trend": [40.0],
+        "Risk": [30.0],
+        "Total": [55.0],
+    })
+    out = tmp_path / "stocks_top100.csv"
+
+    to_csv(result, str(out))
+
+    saved = pd.read_csv(out)
+    assert saved.columns.tolist().count("rank") == 1
+    assert saved["rank"].tolist() == [1]

@@ -26,7 +26,7 @@ python -m src.main --refresh-universe
 python -m src.main --as-of-date 2026-01-15
 
 # 대시보드
-streamlit run dashboard/app.py
+python -m streamlit run dashboard/app.py
 ```
 
 ## Point-in-Time 보정

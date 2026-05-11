@@ -85,7 +85,7 @@ python -m src.main --refresh-universe
 python -m src.main --as-of-date 2026-01-15
 
 # Dashboard
-streamlit run dashboard/app.py
+python -m streamlit run dashboard/app.py
 
 # Tests
 pytest
