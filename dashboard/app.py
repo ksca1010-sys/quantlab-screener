@@ -835,6 +835,11 @@ def _fmt_score(value: float) -> str:
     return f"{float(value):.1f}" if pd.notna(value) else "—"
 
 
+def _plain_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Streamlit display/download용으로 기존 index를 버린 DataFrame."""
+    return df.reset_index(drop=True)
+
+
 def _source_label(source: str) -> tuple[str, str]:
     """시장 데이터 출처 표시용 라벨과 색상."""
     labels = {
@@ -1488,7 +1493,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     _trend_val = float(row.get("Trend", 0))
     _is_bull_pick = _is_bull and _trend_val >= 65
 
-    fdf_display = fdf.reset_index()
+    fdf_display = _plain_df(fdf)
     if "rank" not in fdf_display.columns:
         fdf_display["rank"] = range(1, len(fdf_display) + 1)
     options = fdf_display.apply(
@@ -1646,7 +1651,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     row2 = name2 = None
     if sel_compare != "없음":
         cmp_idx = options.index(sel_compare)
-        row2 = fdf.reset_index().iloc[cmp_idx]
+        row2 = _plain_df(fdf).iloc[cmp_idx]
         name2 = row2["name"]
 
     # 레이더 차트 — 풀 너비 (모바일 @media 컬럼 스택 적용)
@@ -1856,7 +1861,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     st.markdown("**📝 4축 선별 근거 상세**")
     _kor_to_eng2 = {"성장": "Growth", "가치": "Value", "펀더멘털": "Quality", "추세": "Trend"}
     try:
-        reasons = explain_stock(code, fdf.reset_index())
+        reasons = explain_stock(code, _plain_df(fdf))
     except Exception as _ex:
         reasons = {}
         st.warning(f"선별 근거 조회 오류: {_ex}")
@@ -1883,7 +1888,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         st.markdown("---")
         st.markdown(f"**{name2} — 비교 종목 선별 근거**")
         try:
-            reasons2 = explain_stock(row2["code"], fdf.reset_index())
+            reasons2 = explain_stock(row2["code"], _plain_df(fdf))
         except Exception:
             reasons2 = {}
         summary2 = f" — {reasons2['summary']}" if reasons2.get("summary") else ""
@@ -1908,7 +1913,7 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     st.markdown("**유사 점수 종목** (±10점 이내)")
     similar = fdf[
         (fdf["Total"].between(total - 10, total + 10)) & (fdf["code"] != code)
-    ].head(5).reset_index()[["rank", "name", "Total"]]
+    ].head(5).pipe(_plain_df)[["rank", "name", "Total"]]
     if not similar.empty:
         st.caption("← 좌우 스크롤 가능")
         st.dataframe(similar, use_container_width=True, hide_index=True)
@@ -2200,7 +2205,7 @@ def main() -> None:
         if st.session_state.watchlist:
             st.subheader(f"⭐ 관심 종목 ({len(st.session_state.watchlist)}개)")
             st.caption("💾 파일 영구 저장됨")
-            wl_df = df.reset_index()
+            wl_df = _plain_df(df)
             wl_df = wl_df[wl_df["code"].isin(st.session_state.watchlist)][
                 ["name", "code", "Total"]
             ].sort_values("Total", ascending=False)
@@ -2267,7 +2272,7 @@ def main() -> None:
             st.warning("필터 조건에 맞는 종목이 없습니다. 조건을 완화하거나 **필터 초기화**를 클릭하세요.")
         else:
             today_str = datetime.now().strftime("%Y%m%d")
-            csv_bytes = fdf.reset_index().to_csv(index=False).encode("utf-8-sig")
+            csv_bytes = _plain_df(fdf).to_csv(index=False).encode("utf-8-sig")
             st.download_button(
                 label="⬇️ CSV 다운로드",
                 data=csv_bytes,
@@ -2333,7 +2338,7 @@ def main() -> None:
                     def _cached_rs_top(period_days: int) -> pd.DataFrame:
                         from src.valuation import get_top_relative_strength
                         return get_top_relative_strength(
-                            df.reset_index(),
+                            _plain_df(df),
                             benchmark="KS11",
                             lookback_days=period_days,
                             top_n=20,
@@ -2371,7 +2376,7 @@ def main() -> None:
                     "담배": "🌿", "음식료품": "🍱", "기타": "",
                 }
                 sector_top = (
-                    fdf.reset_index()
+                    _plain_df(fdf)
                     .sort_values("Total", ascending=False)
                     .groupby("sector", as_index=False)
                     .first()
@@ -2403,7 +2408,7 @@ def main() -> None:
                 base_cols.insert(-1, "Risk")
             extra_cols = [c for c in ["RSI", "week52_pos", "entry_signal"] if c in fdf.columns]
             display = (
-                sorted_fdf.reset_index()[base_cols + extra_cols]
+                _plain_df(sorted_fdf)[base_cols + extra_cols]
                 .sort_values(sort_col, ascending=sort_asc, kind="stable")
                 .reset_index(drop=True)
             )
@@ -2512,7 +2517,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 _btn_label = f"🔥 {_stock_name}" if _is_bull_row else _stock_name
                 if _rc[2].button(_btn_label, key=f"stk_{_stock_code}", type="tertiary",
                                  use_container_width=True):
-                    _clicked_row = fdf.reset_index()[fdf.reset_index()["code"] == _stock_code]
+                    _clicked_row = _plain_df(fdf)[_plain_df(fdf)["code"] == _stock_code]
                     if not _clicked_row.empty:
                         _show_stock_dialog(_clicked_row.iloc[0], df, fdf, grade_thresholds,
                                            sector_info=sector_info)
