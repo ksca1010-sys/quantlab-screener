@@ -35,6 +35,8 @@ python scripts/smoke_check.py
 python scripts/smoke_check.py --skip-pytest --skip-streamlit --url https://your-app.streamlit.app
 ```
 
+GitHub Actions에서 배포 카나리를 켜려면 저장소 secret `STREAMLIT_APP_URL`에 실제 Streamlit URL을 등록합니다.
+
 ## Point-in-Time 보정
 
 - 과거 `--as-of-date` 실행에서는 현재 Naver PER/PBR을 사용하지 않습니다.

@@ -190,6 +190,7 @@ def check_streamlit_health(timeout: float = 20.0) -> None:
                 with urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=1) as resp:
                     body = resp.read().decode("utf-8", errors="replace").strip()
                 if body == "ok":
+                    check_streamlit_shell(f"http://127.0.0.1:{port}")
                     return
                 last_error = AssertionError(f"unexpected health response: {body!r}")
             except Exception as exc:
@@ -207,12 +208,38 @@ def check_streamlit_health(timeout: float = 20.0) -> None:
             proc.wait(timeout=5)
 
 
+def _read_url_text(url: str, timeout: float = 10.0) -> str:
+    with urlopen(url, timeout=timeout) as resp:
+        status = getattr(resp, "status", 200)
+        if status >= 400:
+            raise AssertionError(f"unexpected HTTP status from {url}: {status}")
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def check_streamlit_shell(base_url: str, timeout: float = 10.0) -> None:
+    html = _read_url_text(base_url.rstrip("/") + "/", timeout=timeout)
+    lowered = html.lower()
+    if "<html" not in lowered or "streamlit" not in lowered:
+        raise AssertionError("Streamlit root did not return the expected app shell")
+    blocked_terms = [
+        "valueerror:",
+        "traceback",
+        "modulenotfounderror",
+        "internal server error",
+        "application error",
+    ]
+    found = [term for term in blocked_terms if term in lowered]
+    if found:
+        raise AssertionError(f"Streamlit root contains error markers: {found}")
+
+
 def check_deployed_health(base_url: str, timeout: float = 10.0) -> None:
     health_url = f"{base_url.rstrip('/')}/_stcore/health"
     with urlopen(health_url, timeout=timeout) as resp:
         body = resp.read().decode("utf-8", errors="replace").strip()
     if body != "ok":
         raise AssertionError(f"unexpected deployed health response from {health_url}: {body!r}")
+    check_streamlit_shell(base_url, timeout=timeout)
 
 
 def main() -> int:
