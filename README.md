@@ -27,6 +27,12 @@ python -m src.main --as-of-date 2026-01-15
 
 # 대시보드
 python -m streamlit run dashboard/app.py
+
+# 운영 smoke check
+python scripts/smoke_check.py
+
+# 배포 URL 카나리 확인
+python scripts/smoke_check.py --skip-pytest --skip-streamlit --url https://your-app.streamlit.app
 ```
 
 ## Point-in-Time 보정
