@@ -1,8 +1,11 @@
 """
 QuantLab Screener Dashboard
-실행: streamlit run dashboard/app.py
+실행: python -m streamlit run dashboard/app.py
 """
+import logging
 import sys
+import traceback
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +17,8 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.explainer import explain_stock
 from src.analyst import fetch_consensus, fetch_current_price, fetch_report_titles, fetch_company_info
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="QuantLab Screener",
@@ -42,6 +47,24 @@ AXIS_TOOLTIPS = {
     "Risk":    "낮은 위험 = 높은 점수. 시장 베타·연환산 변동성·52주 최대낙폭(MDD) 역전 스케일링.",
 }
 REQUIRED_COLS = ["name", "code", "market", "sector"] + AXES + ["Total"]
+
+
+def _runtime_error_id() -> str:
+    """사용자 화면과 서버 로그를 연결할 짧은 오류 ID."""
+    return uuid.uuid4().hex[:8]
+
+
+def _render_runtime_error(exc: Exception, error_id: str | None = None) -> None:
+    """예상 밖 대시보드 예외를 전체 앱 크래시 대신 복구 안내로 표시한다."""
+    error_id = error_id or _runtime_error_id()
+    logger.exception("dashboard runtime error [%s]", error_id)
+    st.error(
+        "대시보드 렌더링 중 오류가 발생했습니다. "
+        f"오류 ID `{error_id}` 기준으로 서버 로그를 확인하세요."
+    )
+    st.caption("데이터 새로고침 후에도 반복되면 output/stocks_top100.csv와 Streamlit 로그를 점검해야 합니다.")
+    with st.expander("기술 정보"):
+        st.code("".join(traceback.format_exception_only(type(exc), exc)).strip())
 
 # Design: Grade colors — accessible contrast, no emoji
 GRADE_CONFIG = {
@@ -3464,5 +3487,13 @@ def _render_macro_tab() -> None:
         """)
 
 
+def _run_dashboard() -> None:
+    """Streamlit 진입점. 예상 밖 예외를 앱 전체 크래시로 노출하지 않는다."""
+    try:
+        main()
+    except Exception as exc:
+        _render_runtime_error(exc)
+
+
 if __name__ == "__main__":
-    main()
+    _run_dashboard()

@@ -40,6 +40,30 @@ def test_plain_df_drops_rank_index_before_csv_download():
     assert plain.columns.tolist().count("rank") == 1
 
 
+def test_run_dashboard_renders_runtime_error_instead_of_raising(monkeypatch):
+    messages: list[str] = []
+
+    monkeypatch.setattr(app, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(app, "_runtime_error_id", lambda: "deadbeef")
+    monkeypatch.setattr(app.st, "error", lambda message: messages.append(str(message)))
+    monkeypatch.setattr(app.st, "caption", lambda message: None)
+
+    class DummyExpander:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(app.st, "expander", lambda label: DummyExpander())
+    monkeypatch.setattr(app.st, "code", lambda message: messages.append(str(message)))
+
+    app._run_dashboard()
+
+    assert any("deadbeef" in message for message in messages)
+    assert any("RuntimeError: boom" in message for message in messages)
+
+
 def test_bull_sector_fallback_uses_trend_when_cache_is_missing():
     df = pd.DataFrame({
         "sector": ["전기·전자", "전기·전자", "보험업", "보험업"],
