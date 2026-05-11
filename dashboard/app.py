@@ -1021,15 +1021,16 @@ def _get_financial_statement_review(code: str) -> dict:
 
 _SECTOR_CACHE_PATH = Path(__file__).parent.parent / "output" / ".sector_strength_cache.json"
 _SECTOR_CACHE_TTL  = 1800  # 30분
+_BULL_TREND_THRESHOLD = 60.0
 
 
-def _load_sector_cache() -> dict | None:
+def _load_sector_cache(allow_stale: bool = False) -> dict | None:
     """디스크 캐시에서 섹터 강도 데이터 로드 (TTL 30분)."""
     import json, time
     try:
         if not _SECTOR_CACHE_PATH.exists():
             return None
-        if time.time() - _SECTOR_CACHE_PATH.stat().st_mtime > _SECTOR_CACHE_TTL:
+        if not allow_stale and time.time() - _SECTOR_CACHE_PATH.stat().st_mtime > _SECTOR_CACHE_TTL:
             return None
         with _SECTOR_CACHE_PATH.open("r", encoding="utf-8") as f:
             return json.load(f)
@@ -1048,9 +1049,47 @@ def _save_sector_cache(data: dict) -> None:
         pass
 
 
-def _load_sector_strength_for_initial_render() -> dict:
-    """첫 렌더에서는 디스크 캐시만 사용해 네트워크 조회로 화면 로딩을 막지 않는다."""
-    return _load_sector_cache() or {}
+def _derive_sector_strength_from_scores(df: pd.DataFrame) -> dict:
+    """섹터 강도 캐시가 없을 때 Trend 점수로 강세 섹터 fallback을 만든다."""
+    if df.empty or "sector" not in df.columns or "Trend" not in df.columns:
+        return {"sector_returns": {}, "bull_sectors": [], "median_return": 0.0, "sector_top": {}, "source": "none"}
+    work = df[["sector", "name", "Trend"]].copy()
+    work["Trend"] = pd.to_numeric(work["Trend"], errors="coerce")
+    sector_avg = work.groupby("sector")["Trend"].mean().dropna().round(2)
+    sector_max = work.groupby("sector")["Trend"].max().dropna()
+    bull_sectors = sorted(sector_max[sector_max >= _BULL_TREND_THRESHOLD].index.tolist())
+    sector_top: dict[str, list] = {}
+    for sector, grp in work.dropna(subset=["Trend"]).groupby("sector"):
+        top = grp.sort_values("Trend", ascending=False).head(5)
+        sector_top[sector] = [[str(r["name"]), round(float(r["Trend"]), 1)] for _, r in top.iterrows()]
+    return {
+        "sector_returns": sector_avg.to_dict(),
+        "bull_sectors": bull_sectors,
+        "median_return": float(sector_avg.median()) if not sector_avg.empty else 0.0,
+        "sector_top": sector_top,
+        "source": "trend_fallback",
+    }
+
+
+def _load_sector_strength_for_initial_render(df: pd.DataFrame) -> dict:
+    """첫 렌더에서는 캐시를 우선 사용하고, 없으면 Trend 기반 fallback으로 불 아이콘을 유지한다."""
+    return _load_sector_cache() or _load_sector_cache(allow_stale=True) or _derive_sector_strength_from_scores(df)
+
+
+def _is_bull_pick(sector: str, trend: float, bull_sectors: set[str]) -> bool:
+    """불 아이콘 표시 조건. 섹터 캐시가 없어도 fallback bull set으로 동작한다."""
+    try:
+        trend_value = float(trend)
+    except Exception:
+        trend_value = 0.0
+    return str(sector) in bull_sectors and trend_value >= _BULL_TREND_THRESHOLD
+
+
+def _sector_strength_unit(sector_info: dict) -> tuple[str, str]:
+    """섹터 강도 값의 라벨과 단위."""
+    if sector_info.get("source") == "trend_fallback":
+        return "추세 점수 기준", "점"
+    return "5일 수익률 기준", "%"
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -1489,9 +1528,10 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
 
     _bull_sectors = set(sector_info.get("bull_sectors", [])) if sector_info else set()
     _sec_rets = sector_info.get("sector_returns", {}) if sector_info else {}
+    _sec_label, _sec_unit = _sector_strength_unit(sector_info or {})
     _is_bull = sector in _bull_sectors
     _trend_val = float(row.get("Trend", 0))
-    _is_bull_pick = _is_bull and _trend_val >= 65
+    _is_bull_pick_row = _is_bull_pick(sector, _trend_val, _bull_sectors)
 
     fdf_display = _plain_df(fdf)
     if "rank" not in fdf_display.columns:
@@ -1504,14 +1544,14 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
     st.markdown(grade_badge_html(total, grade_thresholds), unsafe_allow_html=True)
 
     _sec_ret = _sec_rets.get(sector)
-    if _is_bull_pick and _sec_ret is not None:
+    if _is_bull_pick_row and _sec_ret is not None:
         _sec_badge = (
             f"<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
             f"border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;"
             f"font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:0.06em;'>"
-            f"강세섹터 픽 {_sec_ret:+.1f}%</span>"
+            f"강세섹터 픽 {_sec_ret:+.1f}{_sec_unit}</span>"
         )
-    elif _is_bull_pick:
+    elif _is_bull_pick_row:
         _sec_badge = (
             "<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
             "border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;"
@@ -1522,13 +1562,13 @@ def _render_stock_detail(row: pd.Series, df_univ: pd.DataFrame, fdf: pd.DataFram
         _sec_badge = (
             f"<span style='background:rgba(56,178,107,0.15);color:#38B26B;padding:2px 9px;"
             f"border:1px solid #1E6B40;border-radius:2px;font-size:0.75rem;margin-left:8px;'>"
-            f"▲ 강세섹터 {_sec_ret:+.1f}%</span>"
+            f"▲ 강세섹터 {_sec_ret:+.1f}{_sec_unit}</span>"
         )
     elif _sec_ret is not None:
         _sec_badge = (
             f"<span style='background:#161616;color:#E03030;padding:2px 9px;"
             f"border:1px solid #9B2020;border-radius:2px;font-size:0.75rem;margin-left:8px;'>"
-            f"▽ 약세섹터 {_sec_ret:+.1f}%</span>"
+            f"▽ 약세섹터 {_sec_ret:+.1f}{_sec_unit}</span>"
         )
     else:
         _sec_badge = ""
@@ -2033,7 +2073,7 @@ def main() -> None:
 
     # 섹터 강도는 외부 가격 조회가 필요하므로 첫 화면에서는 디스크 캐시만 사용한다.
     # 캐시가 없거나 만료되면 사이드바의 섹터 강도 새로고침 버튼으로 명시 실행한다.
-    sector_info: dict = _load_sector_strength_for_initial_render() if not df.empty else {}
+    sector_info: dict = _load_sector_strength_for_initial_render(df) if not df.empty else {}
     _bull_sectors_main = set(sector_info.get("bull_sectors", []))
 
     # UX: Full-page onboarding when no data
@@ -2143,8 +2183,9 @@ def main() -> None:
         st.divider()
 
         # 섹터 강도 현황 (5일 수익률 기준 자동 갱신)
+        _strength_label, _strength_unit = _sector_strength_unit(sector_info)
         st.markdown("<div class='sidebar-sector-strength'>", unsafe_allow_html=True)
-        st.markdown("**📡 섹터 강도** <small style='color:#8794A8;font-size:0.92rem;'>5일 수익률 기준</small>",
+        st.markdown(f"**📡 섹터 강도** <small style='color:#8794A8;font-size:0.92rem;'>{_strength_label}</small>",
                     unsafe_allow_html=True)
         if st.button("섹터 강도 새로고침", use_container_width=True):
             _sec_map = tuple(sorted(
@@ -2175,7 +2216,7 @@ def main() -> None:
                         _tt_parts.append(
                             f"<div class='ql-tt-row'>"
                             f"<span class='ql-tt-name'>{_i+1}. {_n}</span>"
-                            f"<span class='ql-tt-ret' style='color:{_rc}'>{_r:+.1f}%</span>"
+                            f"<span class='ql-tt-ret' style='color:{_rc}'>{_r:+.1f}{_strength_unit}</span>"
                             f"</div>"
                         )
                     _tt_rows = "".join(_tt_parts)
@@ -2185,16 +2226,16 @@ def main() -> None:
                     f"<div class='ql-sector-row'>"
                     f"<div style='display:flex;justify-content:space-between;padding:4px 0;font-size:0.98rem;'>"
                     f"<span style='color:#ccc;'>{_icon} {_sname}</span>"
-                    f"<span style='color:{_col};font-weight:700;'>{_sret:+.1f}%</span>"
+                    f"<span style='color:{_col};font-weight:700;'>{_sret:+.1f}{_strength_unit}</span>"
                     f"</div>"
                     f"<div class='ql-sector-tooltip'>"
-                    f"<div style='color:#D7E0EA;font-size:0.88rem;margin-bottom:6px;'>5일 수익률 상위 종목</div>"
+                    f"<div style='color:#D7E0EA;font-size:0.88rem;margin-bottom:6px;'>{_strength_label} 상위 종목</div>"
                     f"{_tt_rows}"
                     f"</div>"
                     f"</div>"
                 )
             st.markdown("\n".join(_rows_html), unsafe_allow_html=True)
-            st.caption(f"섹터 중앙값 {_med:+.1f}% | 수동 새로고침")
+            st.caption(f"섹터 중앙값 {_med:+.1f}{_strength_unit} | 수동 새로고침")
         else:
             st.caption("섹터 강도 캐시가 없습니다. 필요할 때 새로고침하세요.")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -2459,7 +2500,7 @@ def main() -> None:
                 _cname   = str(_crow["종목"]).split("(")[0].strip()
                 _csector = str(_crow.get("sector", ""))
                 _ctrend  = float(_crow.get("Trend", 0)) if "Trend" in _crow else 0.0
-                _cbull   = (_csector in _bull_sectors_main) and (_ctrend >= 65)
+                _cbull   = _is_bull_pick(_csector, _ctrend, _bull_sectors_main)
                 _cards_html.append(_mobile_card_html(
                     rank=int(_crow["전체순위"]),
                     name=_cname,
@@ -2513,7 +2554,7 @@ div[data-testid="stHorizontalBlock"] button[kind="tertiary"]:hover {
                 _stock_code = str(_drow["code"])
                 _row_sector = str(_drow.get("sector", ""))
                 _row_trend = float(_drow.get("Trend", 0)) if "Trend" in _drow else 0.0
-                _is_bull_row = (_row_sector in _bull_sectors_main) and (_row_trend >= 65)
+                _is_bull_row = _is_bull_pick(_row_sector, _row_trend, _bull_sectors_main)
                 _btn_label = f"🔥 {_stock_name}" if _is_bull_row else _stock_name
                 if _rc[2].button(_btn_label, key=f"stk_{_stock_code}", type="tertiary",
                                  use_container_width=True):
