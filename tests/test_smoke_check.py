@@ -53,3 +53,14 @@ def test_streamlit_shell_rejects_error_markers(monkeypatch):
 
     with pytest.raises(AssertionError, match="error markers"):
         smoke_check.check_streamlit_shell("https://example.test")
+
+
+def test_deployed_health_allows_streamlit_auth_redirect(monkeypatch):
+    monkeypatch.setattr(smoke_check, "_is_streamlit_auth_redirect", lambda base_url, timeout=10.0: True)
+    monkeypatch.setattr(
+        smoke_check,
+        "_read_url_text",
+        lambda url, timeout=10.0: pytest.fail("auth-gated app should not fetch shell"),
+    )
+
+    smoke_check.check_deployed_health("https://example.streamlit.app")

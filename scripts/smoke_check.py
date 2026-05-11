@@ -8,7 +8,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, build_opener, urlopen
 
 import pandas as pd
 
@@ -216,6 +217,29 @@ def _read_url_text(url: str, timeout: float = 10.0) -> str:
         return resp.read().decode("utf-8", errors="replace")
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _is_streamlit_auth_redirect(base_url: str, timeout: float = 10.0) -> bool:
+    opener = build_opener(_NoRedirect)
+    for path in ("/", "/_stcore/health"):
+        url = base_url.rstrip("/") + path
+        try:
+            opener.open(url, timeout=timeout)
+        except HTTPError as exc:
+            location = str(exc.headers.get("location", ""))
+            if exc.code in {301, 302, 303, 307, 308} and (
+                "share.streamlit.io/-/auth/app" in location
+                or "/-/login" in location
+            ):
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def check_streamlit_shell(base_url: str, timeout: float = 10.0) -> None:
     html = _read_url_text(base_url.rstrip("/") + "/", timeout=timeout)
     lowered = html.lower()
@@ -234,6 +258,9 @@ def check_streamlit_shell(base_url: str, timeout: float = 10.0) -> None:
 
 
 def check_deployed_health(base_url: str, timeout: float = 10.0) -> None:
+    if _is_streamlit_auth_redirect(base_url, timeout=timeout):
+        print("deployed canary limited: Streamlit Cloud auth redirect detected", flush=True)
+        return
     health_url = f"{base_url.rstrip('/')}/_stcore/health"
     with urlopen(health_url, timeout=timeout) as resp:
         body = resp.read().decode("utf-8", errors="replace").strip()
