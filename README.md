@@ -8,7 +8,7 @@ KOSPI 상위 200개 + KOSDAQ 상위 100개 유니버스를 4축(성장·가치·
 
 ```bash
 # 환경 설정
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
