@@ -111,6 +111,46 @@ def test_historical_market_data_does_not_fallback_to_current_naver(monkeypatch):
     assert result["market_data_source"].iloc[0] == "unavailable_asof"
 
 
+def test_latest_market_data_can_fallback_to_current_naver(monkeypatch):
+    universe_df = pd.DataFrame({"code": ["000001"], "name": ["A"]})
+    monkeypatch.setattr(data_loader, "fetch_krx_fundamentals_by_date", lambda as_of_date: pd.DataFrame())
+    monkeypatch.setattr(
+        data_loader,
+        "fetch_naver_fundamentals",
+        lambda code: {"per": 11.0, "pbr": 1.2, "dividend_yield": 2.3},
+    )
+
+    class FixedTimestamp(pd.Timestamp):
+        @classmethod
+        def today(cls):
+            return cls("2026-05-11")
+
+    monkeypatch.setattr(main.pd, "Timestamp", FixedTimestamp)
+
+    result = main._build_market_data(universe_df, "2026-05-11")
+
+    assert result["per"].iloc[0] == 11.0
+    assert result["market_data_source"].iloc[0] == "naver_current_fallback"
+
+
+def test_historical_universe_refuses_current_fdr_fallback(monkeypatch):
+    class BrokenKrx:
+        def get_market_cap_by_ticker(self, *args, **kwargs):
+            raise RuntimeError("KRX unavailable")
+
+    class FixedTimestamp(pd.Timestamp):
+        @classmethod
+        def today(cls):
+            return cls("2026-05-11")
+
+    monkeypatch.setattr(universe.pd, "Timestamp", FixedTimestamp)
+    monkeypatch.setitem(__import__("sys").modules, "pykrx", type("PykrxModule", (), {"stock": BrokenKrx()})())
+    monkeypatch.setattr(universe.fdr, "StockListing", lambda market: pytest.fail("historical fallback to FDR is forbidden"))
+
+    with pytest.raises(RuntimeError, match="point-in-time"):
+        universe._fetch_listing_with_marcap("2024-01-15")
+
+
 def test_load_universe_regenerates_when_cached_as_of_date_differs(tmp_path, monkeypatch):
     path = tmp_path / "universe.yaml"
     monkeypatch.setattr(universe, "UNIVERSE_PATH", path)

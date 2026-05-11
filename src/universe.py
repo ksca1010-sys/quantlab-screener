@@ -26,7 +26,7 @@ def _universe_snapshot_path(as_of_date: str, kospi_top: int, kosdaq_top: int) ->
 def _fetch_listing_with_marcap(as_of_date: str | None = None) -> pd.DataFrame:
     """
     기준일 종목 + 시총 일괄 조회.
-    과거 기준일은 pykrx 날짜 고정 시총을 우선 사용하고 실패 시 현재 FDR 목록으로 fallback한다.
+    과거 기준일은 pykrx 날짜 고정 시총만 허용하고, 최신 기준일에만 현재 FDR 목록 fallback을 허용한다.
     """
     if as_of_date:
         date_str = pd.Timestamp(as_of_date).strftime("%Y%m%d")
