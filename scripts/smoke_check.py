@@ -27,6 +27,12 @@ REQUIRED_COLS = [
     "Trend",
     "Total",
 ]
+ALLOWED_MARKET_SOURCES = {
+    "krx_fundamental_by_date",
+    "krx_fundamental_cache",
+    "naver_current_fallback",
+    "unavailable_asof",
+}
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -78,6 +84,23 @@ def check_output_csv(path: Path = CSV_PATH) -> None:
     codes = df["code"].astype(str).str.zfill(6)
     if not codes.str.fullmatch(r"\d{6}").all():
         raise AssertionError("stock codes must be six digits after normalization")
+
+    if "market_data_source" in df.columns:
+        sources = set(df["market_data_source"].dropna().astype(str))
+        unknown_sources = sorted(sources - ALLOWED_MARKET_SOURCES)
+        if unknown_sources:
+            raise AssertionError(f"unknown market_data_source values: {unknown_sources}")
+
+    if {"as_of_date", "market_data_source"}.issubset(df.columns):
+        as_of_values = pd.to_datetime(df["as_of_date"], errors="coerce").dropna()
+        if not as_of_values.empty:
+            latest_as_of = as_of_values.max().normalize()
+            today = pd.Timestamp.today().normalize()
+            latest_allowed = today - pd.tseries.offsets.BDay(1) if today.weekday() >= 5 else today
+            is_historical = latest_as_of < (latest_allowed - pd.tseries.offsets.BDay(1))
+            has_current_fallback = (df["market_data_source"] == "naver_current_fallback").any()
+            if is_historical and has_current_fallback:
+                raise AssertionError("historical as_of_date must not use current Naver fallback")
 
 
 def check_export_idempotency() -> None:
